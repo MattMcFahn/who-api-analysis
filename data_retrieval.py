@@ -23,6 +23,7 @@ import pandas as pd
 import time
 
 from async_helpers import main as main
+import asyncio
 
 import sqlite3
 
@@ -65,7 +66,7 @@ def __get_main_measures(dimensions):
 # Now, we load indicator data!
 # TODO: Fix
 # Can't call an async function within a sync function... :(
-def __get_maindata_async(dimensions):
+async def __get_maindata_async(dimensions, test = False):
     """
     I think the method for this currently is crap. Need to review (I'm not good
     with async method).
@@ -89,6 +90,8 @@ def __get_maindata_async(dimensions):
     indicators_frame = dimensions['indicators']['content']
     indicator_codes = indicators_frame.IndicatorCode.unique()
     indicators_urls = {code: f'{root}/{code}' for code in indicator_codes}
+    if test:
+        indicators_urls = {k: indicators_urls[k] for k in list(indicators_urls)[:250]}
     amount = len(indicators_urls)
     
     # Async get the bulk, retrying whilst fails
@@ -98,17 +101,18 @@ def __get_maindata_async(dimensions):
     start = time.time()
     while len(iu) > 0:
         amount = len(iu)
-        responses = await main(iu, amount)
-        print('\n\n\n')
-        
-        # Add successful responses
-        final_responses += [x for x in responses if type(x) != str]
-        
-        # Failed responses
-        failed_resp = [x for x in responses if type(x) == str]
-        iu = {code: val for code, val in indicators_urls.items() if code in failed_resp}
-        print(f'Of {amount} requests, {len(iu)} failed. Retrying')
-        print('\n\n\n')
+        task = asyncio.create_task(main(iu, amount))
+        responses = await task
+        if task.done():
+            print('\n\n\n')
+            # Add successful responses
+            final_responses += [x for x in responses if type(x) != str]
+            
+            # Failed responses
+            failed_resp = [x for x in responses if type(x) == str]
+            iu = {code: val for code, val in indicators_urls.items() if code in failed_resp}
+            print(f'Of {amount} requests, {len(iu)} failed. Retrying')
+            print('\n\n\n')
     end = time.time()
     print(f'Took {end - start} seconds to pull {start_amount} websites.')
     
