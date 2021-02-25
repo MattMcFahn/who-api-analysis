@@ -11,7 +11,8 @@
         [TO DO...]
         This is just due to OData2 protocol. Not sure how to generalise.
         
-        
+    https://www.who.int/data/gho/info/gho-odata-api
+    
  -----------------------------------
  Created on Tue Feb 23 16:41:09 2021
  @author: matthew.mcfahn

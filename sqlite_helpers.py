@@ -61,7 +61,7 @@ def __responses_to_sqlite(responses, outdir = outdir, sqlite_name = sqlite_name)
     conn = create_connection(db_file)
     
     # Define the structure of the data table, with datatypes
-    create_table_sql = """CREATE TABLE IF NOT EXISTS data (
+    create_table_sql = """CREATE TABLE IF NOT EXISTS indicator_data (
                                     ID integer PRIMARY KEY,
                                     IndicatorCode varchar(100) NOT NULL,
                                     SpatialDimType varchar(100),
@@ -104,7 +104,7 @@ def __responses_to_sqlite(responses, outdir = outdir, sqlite_name = sqlite_name)
         print(f'Key: {key}')
         frame = pd.DataFrame(json.loads(response)['value'])
         frame.to_sql(name = 'data', con = conn, if_exists = 'append', index = False)
-    
+    conn.close()
     return None
 
 def __dimensions_to_sqlite(dimensions, outdir = outdir, sqlite_name = sqlite_name):
@@ -119,4 +119,48 @@ def __dimensions_to_sqlite(dimensions, outdir = outdir, sqlite_name = sqlite_nam
     for key, contents in dimensions.items():
         frame = contents['content']
         frame.to_sql(name = key, con = conn, index = False)
+    conn.close()
     return None
+
+def __load_db_to_pandas(db_file, table_name):
+    """
+    
+    Parameters
+    ----------
+    db_file : str
+        Path to the SQlite3 database
+    table : str
+        Name of the table to load
+
+    Returns
+    -------
+    dataframe : pd.DataFrame()
+        The specified table as a pandas dataframe
+    """
+    conn = create_connection(db_file)
+    
+    dataframe = pd.read_sql(sql = f"""SELECT * FROM {table_name}""", con = conn)
+    conn.close()
+    return dataframe
+
+def __run_sql_on_db(db_file, query):
+    """
+    Generate a pandas dataframe from the SQL query on the db_file
+    
+    Parameters
+    ----------
+    db_file : str
+        Path to the SQlite3 database
+    query : str
+        SQL query
+
+    Returns
+    -------
+    df : pd.DataFrame()
+        Dataframe of return result from the query
+    """
+    conn = create_connection(db_file)
+    
+    dataframe = pd.read_sql(sql = query, con = conn)
+    conn.close()
+    return dataframe
