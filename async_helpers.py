@@ -9,7 +9,6 @@
 # Async packages for grabbing all URLS
 import asyncio
 import aiohttp
-import time
 
 # Async get functions for getting 1,000s of responses quicker than sequential
 async def get(url, indicator):

@@ -5,12 +5,14 @@
  @author: matthew.mcfahn
 """
 
+import pandas as pd
 import json
 import sqlite3
 from sqlite3 import Error
 from getpass import getuser
+import os
 
-import data_retrieval
+# import data_retrieval
 
 # dimensions = data_retrieval.__get_main_measures(data_retrieval.dimensions)
 # responses = data_retrieval.__get_maindata_async(dimensions)
@@ -18,7 +20,7 @@ import data_retrieval
 if os.name == 'posix':
     outdir = f'/Users/{getuser()}/Documents'
 else:
-    outdir = f'C:\Users\{getuser()\Documents'
+    outdir = fr'C:\Users\{getuser()}\Documents'
 sqlite_name = 'WHO_Data'
 
 def create_connection(db_file):

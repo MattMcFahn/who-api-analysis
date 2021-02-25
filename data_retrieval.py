@@ -25,7 +25,6 @@ import time
 from async_helpers import main as main
 import asyncio
 
-import sqlite3
 
 # Set URLs
 root = 'https://ghoapi.azureedge.net/api/'
@@ -63,9 +62,7 @@ def __get_main_measures(dimensions):
         dimensions[dim]['content'] = frame
     return dimensions
 
-# Now, we load indicator data!
-# TODO: Fix
-# Can't call an async function within a sync function... :(
+# Now, we load indicator data, using an async method
 async def __get_maindata_async(dimensions, test = False):
     """
     I think the method for this currently is crap. Need to review (I'm not good
@@ -86,7 +83,6 @@ async def __get_maindata_async(dimensions, test = False):
     responses : dict
         A dictionary of {indicator: request response}
     """
-    indicator_data = {}
     indicators_frame = dimensions['indicators']['content']
     indicator_codes = indicators_frame.IndicatorCode.unique()
     indicators_urls = {code: f'{root}/{code}' for code in indicator_codes}
