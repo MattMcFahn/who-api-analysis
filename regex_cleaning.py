@@ -113,6 +113,59 @@ def __identify_cases(string):
     
     return codes
 
+def __determine_cases(df):
+    """
+    
+    Parameters
+    ----------
+    df : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    df : pd.DataFrame
+        Adds a 'MainCase' and 'Group' identifier
+    """
+    df['MainCase'] = df['Cases'].apply(min)
+    # Hacks... should work into regex really.
+    df.loc[df['Value'].str.contains('men'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('Male'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('Year'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('Grades'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('tobacco'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('yyyy'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('excise'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('revenue'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('Drivers'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('GB'), 'Cases'] = None
+    df['Cases'] = df['Cases'].fillna({})
+    
+    df.loc[df['Cases'] == {10, 15}, 'MainCase'] = 15
+    df.loc[df['Cases'] == {7, 8, 11}, 'MainCase'] = 11
+    df.loc[df['Cases'] == {20, 21, 22}, 'MainCase'] = 22
+    df.loc[df['Cases'] == {20, 23}, 'MainCase'] = 23
+    
+    df['Group'] = df['MainCase'].map({1:1,
+                                      2:2,
+                                      3:3,
+                                      5:4,
+                                      6:5,
+                                      7:5,
+                                      8:4,
+                                      9:2,
+                                      10:6,
+                                      11:2,
+                                      13:1,
+                                      14:2,
+                                      15:7,
+                                      19:2,
+                                      20:7,
+                                      21:7,
+                                      22:2,
+                                      23:2})
+    
+    return df
+    
 def __clean_likenumbers(likenumbers_df):
     """
     TODO
@@ -136,24 +189,12 @@ def __clean_likenumbers(likenumbers_df):
     
     
     df['Cases'] = df['Value'].apply(lambda x: __identify_cases(x))
-    df['FirstCase'] = df['Cases'].apply(min)
-    # Hacks... should work into regex really.
-    df.loc[df['Value'].str.contains('men'), 'Cases'] = None
-    df.loc[df['Value'].str.contains('Male'), 'Cases'] = None
-    df.loc[df['Value'].str.contains('Year'), 'Cases'] = None
-    df.loc[df['Value'].str.contains('Grades'), 'Cases'] = None
-    df.loc[df['Value'].str.contains('tobacco'), 'Cases'] = None
-    df.loc[df['Value'].str.contains('yyyy'), 'Cases'] = None
-    df.loc[df['Value'].str.contains('excise'), 'Cases'] = None
-    df.loc[df['Value'].str.contains('revenue'), 'Cases'] = None
-    df.loc[df['Value'].str.contains('Drivers'), 'Cases'] = None
-    df.loc[df['Value'].str.contains('GB'), 'Cases'] = None
-    df['Cases'] = df['Cases'].fillna({})
+    # Determine specific case, and group, based on some hacky logic
+    df = __determine_cases(df)
     
-    df.loc[df['Cases'] == {10, 15}, 'FirstCase'] = 15
-    df.loc[df['Cases'] == {7, 8, 11}, 'FirstCase'] = 11
-    df.loc[df['Cases'] == {20, 21, 22}, 'FirstCase'] = 22
-    df.loc[df['Cases'] == {20, 23}, 'FirstCase'] = 23
+    # Update 'NumericVal', 'Low', 'High' based on the 'Group' column
+    # TODO
     
-    
+    # Drop the accumulated columns, return
+    df.drop(columns = {'Cases','MainCase','Group'}, inplace = True)
     return df
