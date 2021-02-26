@@ -52,30 +52,4 @@ sliced = dataframe.loc[dataframe['Dim3Type'] == 'CHILDCAUSE']
 sliced = dataframe.loc[dataframe['NumericValue'].isna()]
 # Looks like to investigate properly, we'll need to define value types / codifications for indicators. E.g. mapping "Yes/No" to 1/0.
 
-def __clean_raw_ingest(dataframe):
-    """
-    Takes the data ingested as is, and does some cleaning supported by the 
-    investigation on the scratchpad.
-    
-    Returns the modified df
-    """
-    # Couple columns we just don't need
-    
-    dataframe.drop(columns = {'SpatialDimType','TimeDimType','DataSourceDimType'}, inplace = True)
-    
-    # Get data source for each indicator, where poss
-    # TODO: What uniquely identifies a datasource? E.g. is it {Indicator, Year, Country}? (It appears this doesn't always work...)
-    data_sources = dataframe[['IndicatorCode', 'TimeDim', 'SpatialDim', 'DataSourceDim']]
-    data_sources.drop_duplicates(inplace = True)   
-    data_sources['DataSourceDim'] = data_sources['DataSourceDim'].replace({'NA':None})
-    data_sources.dropna(inplace = True)
-    
-    dataframe.drop(columns = {'DataSourceDim'}, inplace = True)
-    
-    return dataframe
-
-# Notes on extra info needing to be gathered:
-    # - SpatialDimType: Pull codes and such for other spacial types, get in extra table
-    # - TimDimType: Doesn't matter at all
-    
     
