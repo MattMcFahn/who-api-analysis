@@ -59,7 +59,9 @@ def __identify_cases(string):
         'Contains "risky" and a number': Case 18
         " 'Number1-Number2 | 'Number1, Number 2": Case 19
         "[Number]": Case 20
-    
+        Case 21?
+        "[Number1 Number1 ..." (i.e. ' ' should be ','): Case 22
+        "Number1 with 2 commas / Number2 with 2 commas": Case 23
     TODO: 
         2) Numbers contained in square brackets (for some of the existing patterns above - optional)
         3) Optional ' ' or '=' after the < or > signs
@@ -79,9 +81,9 @@ def __identify_cases(string):
     # Define patterns
     patterns = {}
     patterns[1] = "(\d+(\.\d+)?)( )?\[(\d+(\.\d+)?)( )?-( )?(\d+(\.\d+)?)\]" # Case 1, a bit involved due to decimals
-    patterns[2] = ".*(\[)?(\d+(\.\d+)?)( )?-( )?(\d+(\.\d+)?)(\])?" # Simpler case 2
-    patterns[3] = ">(=)?( )?(\d+(\.\d+)?)( )?\[(\d+(\.\d+)?)( )?-( )?>(=)?( )?(\d+(\.\d+)?)\]" # Case 3 even more complex
-    patterns[4] = "<(=)?( )?(\d+(\.\d+)?)( )?\[(\d+(\.\d+)?)( )?-( )?<(=)?( )?(\d+(\.\d+)?)\]" 
+    patterns[2] = "(\[)?(\d+(\.\d+)?)( )?-( )?(\d+(\.\d+)?)(\])?" # Simpler case 2
+    patterns[3] = ">(=)?( )?(\d+(\.\d+)?)( )?\[(>)?(\d+(\.\d+)?)( )?-( )?>(=)?( )?(\d+(\.\d+)?)\]" # Case 3 even more complex
+    patterns[4] = "<=? ?(\d+(\.\d+)?) ?\[<?(\d+(\.\d+)?) ?- ?<?=? ?(\d+(\.\d+)?)\]" 
     patterns[5] = ">(=)?( )?(\d+(\.\d+)?)"
     patterns[6] = "<(=)?( )?(\d+(\.\d+)?)"
     patterns[7] = "(?i).*less"
@@ -90,7 +92,7 @@ def __identify_cases(string):
     patterns[10] = "(\d+(\.\d+)?)[+-]+?"
     patterns[11] = "(?i).*more.*less"
     patterns[12] = "(?i).*less.*more"
-    patterns[13] = "(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?"
+    patterns[13] = "(\[)?(\d+([\.|,]\d+)?)(\])?/(\[)?(\d+([\.|,]\d+)?)(\])?/(\[)?(\d+([\.|,]\d+)?)(\])?"
     patterns[14] = "(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?"
     patterns[15] = "(\d+(\.\d+)?)" #TODO - Figure this one out
     patterns[17] = "(?i)around( )?(\d+(\.\d+)?)|approx.( )?(\d+(\.\d+)?)"
@@ -98,6 +100,8 @@ def __identify_cases(string):
     patterns[19] = "'(\d+(\.\d+)?)-( )?(\d+(\.\d+)?)"
     patterns[20] = "\[[1-9(\.), ]"
     patterns[21] = "(\[)?(\d+(\.\d+)?)(\.)?(\d+(\.\d+)?)"
+    patterns[22] = "\[\d+ \d+-\d+ \d+]"
+    patterns[23] = "\[\d+,\d+,\d+]/\[\d+,\d+,\d+]"
     
     # TODO: Replace with just single key
     codes = set()
@@ -127,16 +131,29 @@ def __clean_likenumbers(likenumbers_df):
     df = likenumbers_df.copy()
     # Strip trailing and leading whitespace
     df['Value'] = df['Value'].str.strip()
+    # Replace weird dashes
+    df['Value'] = df['Value'].str.replace('–','-')
+    
     
     df['Cases'] = df['Value'].apply(lambda x: __identify_cases(x))
     df['FirstCase'] = df['Cases'].apply(min)
     # Hacks... should work into regex really.
     df.loc[df['Value'].str.contains('men'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('Male'), 'Cases'] = None
     df.loc[df['Value'].str.contains('Year'), 'Cases'] = None
     df.loc[df['Value'].str.contains('Grades'), 'Cases'] = None
     df.loc[df['Value'].str.contains('tobacco'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('yyyy'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('excise'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('revenue'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('Drivers'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('GB'), 'Cases'] = None
+    df['Cases'] = df['Cases'].fillna({})
+    
     df.loc[df['Cases'] == {10, 15}, 'FirstCase'] = 15
     df.loc[df['Cases'] == {7, 8, 11}, 'FirstCase'] = 11
+    df.loc[df['Cases'] == {20, 21, 22}, 'FirstCase'] = 22
+    df.loc[df['Cases'] == {20, 23}, 'FirstCase'] = 23
     
     
     return df
