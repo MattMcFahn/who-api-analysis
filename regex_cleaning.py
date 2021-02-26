@@ -51,8 +51,8 @@ def __identify_cases(string):
         'Number and "-+" after': Case 10
         'More than Number1 but less than Number2': Case 11
         'Less than Number1 but more than Number2': Case 12
-        'Number1/Number2': Case 13
-        'Number1/Number2/Number3': Case 14
+        'Number1/Number2/Number3': Case 13
+        'Number1/Number2': Case 14
         'Number"UNIT"': Case 15
         'Number1/Number2"UNIT"': Case 16 (will be caught by 13)
         'around Number': Case 17
@@ -90,8 +90,8 @@ def __identify_cases(string):
     patterns[10] = "(\d+(\.\d+)?)[+-]+?"
     patterns[11] = "(?i).*more.*less"
     patterns[12] = "(?i).*less.*more"
-    patterns[13] = "(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?"
-    patterns[14] = "(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?"
+    patterns[13] = "(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?"
+    patterns[14] = "(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?"
     patterns[15] = "(\d+(\.\d+)?)" #TODO - Figure this one out
     patterns[17] = "(?i)around( )?(\d+(\.\d+)?)|approx.( )?(\d+(\.\d+)?)"
     patterns[18] = "(?i)risky"
@@ -104,6 +104,9 @@ def __identify_cases(string):
     for key, pattern in patterns.items():
         if bool(re.match(pattern, string)):
             codes |= {key}
+    if codes == set():
+        codes = {0}
+    
     return codes
 
 def __clean_likenumbers(likenumbers_df):
@@ -126,5 +129,14 @@ def __clean_likenumbers(likenumbers_df):
     df['Value'] = df['Value'].str.strip()
     
     df['Cases'] = df['Value'].apply(lambda x: __identify_cases(x))
+    df['FirstCase'] = df['Cases'].apply(min)
+    # Hacks... should work into regex really.
+    df.loc[df['Value'].str.contains('men'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('Year'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('Grades'), 'Cases'] = None
+    df.loc[df['Value'].str.contains('tobacco'), 'Cases'] = None
+    df.loc[df['Cases'] == {10, 15}, 'FirstCase'] = 15
+    df.loc[df['Cases'] == {7, 8, 11}, 'FirstCase'] = 11
+    
     
     return df
