@@ -152,10 +152,9 @@ def __clean_numerical_values(dataframe):
     
     # Identify those CONTAINING a number. These are trickier to deal with, and we use regex
     missing_value['ValueLikeNumber'] = missing_value['Value'].apply(lambda x: __likenumber(x))
-    non_updated_df = missing_value.loc[~missing_value['ValueLikeNumber']]
+    othercases_df = missing_value.loc[~missing_value['ValueLikeNumber']]
     likenumbers_df = missing_value.loc[missing_value['ValueLikeNumber']]
     likenumbers_df = regex_cleaning.__clean_likenumbers(likenumbers_df)
-
     
     
     
@@ -169,7 +168,6 @@ def __clean_raw_ingest(dataframe):
     Returns the modified df
     """
     # Couple columns we just don't need
-    
     dataframe.drop(columns = {'SpatialDimType','TimeDimType','DataSourceDimType'}, inplace = True)
     
     # Get data source for each indicator, where poss
@@ -182,7 +180,7 @@ def __clean_raw_ingest(dataframe):
     dataframe.drop(columns = {'DataSourceDim'}, inplace = True)
     
     # Deal with Value and NumericValue columns!
-    # TODO
+    dataframe = __clean_numerical_values(dataframe)
     
     
     return dataframe, data_sources
