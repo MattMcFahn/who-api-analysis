@@ -6,6 +6,7 @@ Created on Thu Feb 25 11:52:30 2021
 
 import sqlite_helpers
 from sqlite_helpers import __run_sql_on_db
+import cleaning
 
 import pandas as pd
 pd.options.mode.chained_assignment = None  # default='warn'
@@ -52,4 +53,16 @@ sliced = dataframe.loc[dataframe['Dim3Type'] == 'CHILDCAUSE']
 sliced = dataframe.loc[dataframe['NumericValue'].isna()]
 # Looks like to investigate properly, we'll need to define value types / codifications for indicators. E.g. mapping "Yes/No" to 1/0.
 
-    
+# Exploring outputs from cleaning :~
+indicator_codes, dataframe = cleaning.__grab_data_helper()
+new_frame, data_sources = cleaning.__clean_raw_ingest(dataframe)
+merge_col = ['ID']
+ref_cols = ['IndicatorCode','TimeDim','SpatialDim','Dim1','Dim2','Dim3']
+value_col = ['Value']
+changed_cols = ['NumericValue','Low','High']
+
+dataframe = dataframe[merge_col + ref_cols + value_col + changed_cols]
+new_frame = new_frame[merge_col + changed_cols]
+
+test = dataframe.merge(new_frame, on = merge_col, how = 'inner', suffixes = ('_Original','_New'), validate = 'one_to_one')
+

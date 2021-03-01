@@ -35,10 +35,14 @@
 """
 
 import re
+import numpy as np
 
 def __identify_cases(string):
     """
-    Uses regex matching to identify what kind of string is contained:
+    NOTE: This function is a mess. It works, but barely.
+    
+    Uses regex matching to identify what kind of string is contained. Some
+    examples are below.
         'Number 1 [Number 2 - Number 3]': Case 1
         'Number 1 - Number 2': Case 2
         '>Number1 [Number2 - >Number1]': Case 3
@@ -62,11 +66,6 @@ def __identify_cases(string):
         Case 21?
         "[Number1 Number1 ..." (i.e. ' ' should be ','): Case 22
         "Number1 with 2 commas / Number2 with 2 commas": Case 23
-    TODO: 
-        2) Numbers contained in square brackets (for some of the existing patterns above - optional)
-        3) Optional ' ' or '=' after the < or > signs
-        4) Deal with ',' or ' ' in some numbers < remove them. (This might actually be slightly involved...)
-        5) Deal with leading or trailing whitespace
     
     Parameters
     ----------
@@ -91,17 +90,21 @@ def __identify_cases(string):
     patterns[9] = "(\d+(\.\d+)?)( )?to( )?(\d+(\.\d+)?)"
     patterns[10] = "(\d+(\.\d+)?)[+-]+?"
     patterns[11] = "(?i).*more.*less"
-    patterns[12] = "(?i).*less.*more"
+
     patterns[13] = "(\[)?(\d+([\.|,]\d+)?)(\])?/(\[)?(\d+([\.|,]\d+)?)(\])?/(\[)?(\d+([\.|,]\d+)?)(\])?"
     patterns[14] = "(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?"
     patterns[15] = "(\d+(\.\d+)?)" #TODO - Figure this one out
-    patterns[17] = "(?i)around( )?(\d+(\.\d+)?)|approx.( )?(\d+(\.\d+)?)"
-    patterns[18] = "(?i)risky"
+
     patterns[19] = "'(\d+(\.\d+)?)-( )?(\d+(\.\d+)?)"
     patterns[20] = "\[[1-9(\.), ]"
     patterns[21] = "(\[)?(\d+(\.\d+)?)(\.)?(\d+(\.\d+)?)"
-    patterns[22] = "\[\d+ \d+-\d+ \d+]"
+
     patterns[23] = "\[\d+,\d+,\d+]/\[\d+,\d+,\d+]"
+
+    patterns[25] = "\d+(,\d+){2}?(\.\d+)?/\d+(,\d+){2}?(\.\d+)?"
+    patterns[26] = "\d+(,\d+){1}?(\.\d+)?/\d+(,\d+){2}?(\.\d+)?/\d+(,\d+){2}?(\.\d+)?"
+    patterns[27] = '\d+(,\d+){1}?(\.\d+)?/\d+(,\d+){1}?(\.\d+)?'
+    patterns[28] = '\d+  - \d+'
     
     # TODO: Replace with just single key
     codes = set()
@@ -113,20 +116,21 @@ def __identify_cases(string):
     
     return codes
 
-def __determine_cases(df):
+def __group_cases(df):
     """
+    Used to group cases based on what logic will apply for filling the 
+    'NumericValue', 'Low' and 'High' fields (multiple cases have the same logic)
     
     Parameters
     ----------
-    df : TYPE
-        DESCRIPTION.
+    df : pd.DataFrame()
+        The ingest data with cases identified for each 'Value' entry
 
     Returns
     -------
     df : pd.DataFrame
         Adds a 'MainCase' and 'Group' identifier
     """
-    df['MainCase'] = df['Cases'].apply(min)
     # Hacks... should work into regex really.
     df.loc[df['Value'].str.contains('men'), 'Cases'] = None
     df.loc[df['Value'].str.contains('Male'), 'Cases'] = None
@@ -140,14 +144,24 @@ def __determine_cases(df):
     df.loc[df['Value'].str.contains('GB'), 'Cases'] = None
     df['Cases'] = df['Cases'].fillna({})
     
+    # Identify the 'MainCase'
+    df.loc[~(df['Cases'].isna()), 'MainCase'] = df.loc[~(df['Cases'].isna()), 'Cases'].apply(min)
+    df['MainCase'].fillna(0, inplace = True)
+    
     df.loc[df['Cases'] == {10, 15}, 'MainCase'] = 15
     df.loc[df['Cases'] == {7, 8, 11}, 'MainCase'] = 11
-    df.loc[df['Cases'] == {20, 21, 22}, 'MainCase'] = 22
     df.loc[df['Cases'] == {20, 23}, 'MainCase'] = 23
+    df.loc[df['Cases'] == {15,25}, 'MainCase'] = 25
+    df.loc[df['Cases'] == {15,27}, 'MainCase'] = 27
+    df.loc[df['Cases'] == {27, 21, 15}, 'MainCase'] = 27
+    df.loc[df['Cases'] == {26, 27, 21, 15}, 'MainCase'] = 26
+    df.loc[df['Cases'] == {21, 15, 28}, 'MainCase'] = 28
     
+    # Map to the groups that have the same logic applied to them
     df['Group'] = df['MainCase'].map({1:1,
                                       2:2,
                                       3:3,
+                                      4:1,
                                       5:4,
                                       6:5,
                                       7:5,
@@ -162,10 +176,80 @@ def __determine_cases(df):
                                       20:7,
                                       21:7,
                                       22:2,
-                                      23:2})
+                                      23:2,
+                                      24:2,
+                                      25:2,
+                                      26:1,
+                                      27:2,
+                                      28:2})
     
     return df
+
+def __make_replacements(df):
+    """
+    Based on the 'Group' column, extracts the numeric parts of the 'Value' col
+    and fills in three new columns 'NumericValue_New', 'Low_New' and 'High_New'
+    of the parsed information, for updating the original columns where they
+    are missing values.
     
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The 'Likenumber' cases with groupings identified
+
+    Returns
+    -------
+    df : pd.DataFrame
+        The same frame, with new 'NumericValue_New', 'Low_New' and 'High_New'
+        appended
+    """
+    df['Value'] = df['Value'].str.replace(',','')
+    decimal_regex = r'\d+(\.\d+)?'
+    
+    df['Numbers'] = df['Value'].apply(lambda string: [x.group() for x in re.finditer(decimal_regex, string)])
+    df['Numbers'] = df['Numbers'].apply(lambda x: sorted(x, reverse = True))
+    
+    number_of_values_by_group = {1:3,2:2,3:3,4:1,5:1,6:1,7:1}
+    
+    # Group 1: Write directly for all three vals
+    group_number = 1
+    df.loc[df['Group'] == group_number & df['High'].notna(), 'High'] = df.loc[df['Group'] == group_number & df['High'].notna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[1])
+    df.loc[df['Group'] == group_number & df['Low'].notna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].notna(), 'Numbers'].apply(lambda x: x[2])
+    
+    # Group 2: Write high and low, and average numeric
+    group_number = 2
+    df.loc[df['Group'] == group_number & df['High'].notna(), 'High'] = df.loc[df['Group'] == group_number & df['High'].notna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[df['Group'] == group_number & df['Low'].notna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].notna(), 'Numbers'].apply(lambda x: x[1])
+    df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number][['Low','High']].mean(axis = 1)
+    
+    # Group 3: Write low and numeric only from 2 unique vals
+    group_number = 3
+    df.loc[df['Group'] == group_number & df['Low'].notna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].notna(), 'Numbers'].apply(lambda x: x[len(x) - 1])
+    df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[0])
+    
+    # Group 4: Write low and numeric only from 1 unique val
+    group_number = 4
+    df.loc[df['Group'] == group_number & df['Low'].notna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].notna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[0])
+    
+    # Group 5: Write numeric and high only from 1 unique val
+    group_number = 5
+    df.loc[df['Group'] == group_number & df['High'].notna(), 'High'] = df.loc[df['Group'] == group_number & df['High'].notna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[0])
+
+    # Group 6: Write numeric only from 1 unique val
+    group_number = 6
+    df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[0])
+
+    # Group 7: Write low, numeric, and high from 1 unique val
+    group_number = 7
+    df.loc[df['Group'] == group_number & df['High'].notna(), 'High'] = df.loc[df['Group'] == group_number & df['High'].notna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[0])
+    df.loc[df['Group'] == group_number & df['Low'].notna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].notna(), 'Numbers'].apply(lambda x: x[0])
+
+    return df
+
 def __clean_likenumbers(likenumbers_df):
     """
     TODO
@@ -182,6 +266,7 @@ def __clean_likenumbers(likenumbers_df):
 
     """
     df = likenumbers_df.copy()
+    original_cols = df.columns
     # Strip trailing and leading whitespace
     df['Value'] = df['Value'].str.strip()
     # Replace weird dashes
@@ -190,11 +275,11 @@ def __clean_likenumbers(likenumbers_df):
     
     df['Cases'] = df['Value'].apply(lambda x: __identify_cases(x))
     # Determine specific case, and group, based on some hacky logic
-    df = __determine_cases(df)
+    df = __group_cases(df)
     
     # Update 'NumericVal', 'Low', 'High' based on the 'Group' column
-    # TODO
+    df = __make_replacements(df)
     
     # Drop the accumulated columns, return
-    df.drop(columns = {'Cases','MainCase','Group'}, inplace = True)
+    df = df[original_cols]
     return df
