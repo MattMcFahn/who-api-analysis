@@ -100,12 +100,21 @@ def __clean_numerical_values(dataframe):
     
     return dataframe
     
-def __clean_raw_ingest(dataframe):
+def cleaning_main(dataframe):
     """
-    Takes the data ingested as is, and does some cleaning supported by the 
-    investigation on the scratchpad.
-    
-    Returns the modified df
+    Takes the 'indicator_data' ingested as is, and cleans it:
+        > Removes unneeded columns
+        > Fills some missing 'NumericValue', 'Low', 'High' columns by parsing 
+        'Value' for strings containing numbers
+        > AOB? 
+        TODO
+    Parameters
+    ----------
+    dataframe : pd.DataFrame()
+        The 'indicator_data' table from the staging SQLite table
+    Returns
+    -------
+    TODO: Determine
     """
     # Couple columns we just don't need
     dataframe.drop(columns = {'SpatialDimType','TimeDimType','DataSourceDimType'}, inplace = True)
