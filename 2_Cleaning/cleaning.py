@@ -1,7 +1,14 @@
 """
- Some simple cleaning - dealing with all 6.2 million rows is too much, so just
- a couple simple sweeping changes are made here
+ A cleaning script for the staged data retrieved from the WHO GHO API.
  
+ The main purpose of this is to:
+     > Improve data quality in the 'indicator_data' table (as this contains
+                                                           the most info)
+     > Drop unnecessary information
+     > Begin data modelling by drawing out separate data into characteristic 
+     tables
+ 
+ This script is a work in progress
  ----------------------------------- 
  Created on Fri Feb 26 09:53:04 2021
  @author: matthew.mcfahn
@@ -9,123 +16,9 @@
 
 import pandas as pd
 pd.options.mode.chained_assignment = None  # default='warn'
+
 import regex_cleaning
-
-# To be cut after developed
-import sqlite_helpers
-from sqlite_helpers import __run_sql_on_db
-
-def __grab_data_helper():
-    db_file = f"{sqlite_helpers.outdir}/{sqlite_helpers.sqlite_name}.sqlite3" 
-    
-    # Get indicator information
-    ind_query = """SELECT * 
-                   FROM indicators;"""
-    indicator_codes = __run_sql_on_db(db_file, query = ind_query)
-    
-    # Explore datatypes of different columns
-    dataframe = sqlite_helpers.__load_db_to_pandas(db_file, 'indicator_data')
-    return indicator_codes, dataframe
-# To be cut after developed
-
-def __isnumber(value):
-    """
-    Helper function to indicate whether an object passed is a float in another format.
-    
-    Example cases of truth:
-        > value is an integer / float data type
-        > value = '1,000', then the float value is 1000
-        > value = '1 000 000.00' then the float value is 1000000
-    Example cases of false:
-        > Anything else
-    
-    Parameters
-    ----------
-    value : mixed type
-        Can be an int, float, string, or None type
-
-    Returns
-    -------
-    x : Bool
-        A bool indicating whether the object passed is actually a float
-    """
-    if value == None: # Deal with Null values
-        x = False
-    elif type(value) == int or type(value) == float: # Easy case, numbers
-        x = True
-    elif type(value) == str: # Find the strings that contain numbers
-        test_val = value.replace(',','').replace(' ','') # We need to deal with a couple corner cases - these come from only a couple indicators
-        try:
-            float(test_val)
-            x = True
-        except ValueError:
-            x =  False
-    else:
-        raise Exception('Incompatible data type. Review logic.')
-    
-    return x
-
-def __makenumber(value):
-    """
-    Helper function to change the poorly formatted numbers to floats
-    
-    Examples:
-        > value is an integer / float data type -> float type returned
-        > value = '1,000', then the float value is 1000
-        > value = '1 000 000.00' then the float value is 1000000
-    
-    Parameters
-    ----------
-    value : mixed type
-        Can be an int, float, or string
-
-    Returns
-    -------
-    number : Float
-        The value object returned as a float
-    """
-    if type(value) == float:
-        number = value
-    elif type(value) == int:
-        number = float(value)
-    elif type(value) == str:
-        number = float(value.replace(',','').replace(' ',''))
-    else:
-        raise Exception('Incompatible data type. Review logic.')
-    
-    return number
-
-def __likenumber(value):
-    """
-    Identify which values are 'like' numbers - determined by:
-        > They are a string containing a number, AND
-        > They aren't one of the two corner cases identified in __makenumber()
-    Parameters
-    ----------
-    value : mixed type
-        An entry value of type int, float, string, null
-
-    Returns
-    -------
-    x : Bool
-        Is this object 'like' a number (contains a number & isn't an exception)
-
-    """
-    if value == None: # Deal with Null values
-        x = False
-    elif type(value) == int or type(value) == float: # Deal with number dtypes
-        x = False
-    elif type(value) == str: # Main logic - for strings
-        
-        x = any(char.isdigit() for char in value) # Does the string contain a number?
-        if x: # If the string contains a number, check if it can be transformed into a number. If so, ignore
-            test_val = value.replace(',','').replace(' ','') 
-            try:
-                float(test_val)
-                x = False
-            except ValueError:
-                pass
-    return x
+from who_helpers import __isnumber, __makenumber, __likenumber
 
 def __clean_bespoke_indicators(missing_value):
     """
@@ -203,6 +96,7 @@ def __clean_numerical_values(dataframe):
     likenumbers_df = regex_cleaning.__clean_likenumbers(likenumbers_df)
     
     dataframe = pd.concat([present_value, othercases_df, likenumbers_df])
+    dataframe = dataframe[original_columns]
     
     return dataframe
     

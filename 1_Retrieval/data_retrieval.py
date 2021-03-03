@@ -1,17 +1,10 @@
 """
- Little scratchpad for accessing the WHO GHO API.
+ A module to retrieve the main data necessary from the WHO Global Health
+ Observatory, using their API:
+     https://www.who.int/data/gho/info/gho-odata-api
  
- # Basic URL structure is: http://HOST/INSTANCE/XXX
- 
- Parameters in the WHO endpoint:
-     Fixed:
-         HOST > ghoapi.azureedge.net
-         INSTANCE > api
-    Optional:
-        [TO DO...]
-        This is just due to OData2 protocol. Not sure how to generalise.
-        
-    https://www.who.int/data/gho/info/gho-odata-api
+ There is another API available for the GHO, using Athena rather than OData. 
+ As a more standard protocol, the OData API has been used here.
     
  -----------------------------------
  Created on Tue Feb 23 16:41:09 2021
@@ -26,8 +19,7 @@ import time
 from async_helpers import main as main
 import asyncio
 
-
-# Set URLs
+# Set URLs for the API endpoints of the main things we need to scrape
 root = 'https://ghoapi.azureedge.net/api/'
 dimensions = {'measures':{'url':f'{root}/Dimension'},
               'countries':{'url':f'{root}/DIMENSION/COUNTRY/DimensionValues'},
@@ -38,18 +30,22 @@ dimensions = {'measures':{'url':f'{root}/Dimension'},
 ### - Retrieval routines
 def __get_main_measures(dimensions):
     """
-    Get the main measures via requests, and format as needed.
+    Just use the requests module to make requests to the API for the top level
+    dimensions we need to retrieve
+    
     Parameters
     ----------
     dimensions : dict
-        The measures, and just their URLs
-
+        A nested JSON like structure of {'measure':content} format. For each 
+        measure, the content is a dictionary, which has 'url' containing the
+        API address for that measure
     Returns
     -------
     dimensions : dict
-        The original dict modified in place to add responses, json and DataFrames
+        The original dictionary modified in place to add responses, json, and 
+        DataFrames from the successful API requests
     """
-    # Get the measure, country, region and indicator information 
+    
     for dim, contents in dimensions.items():
         # Make request
         response = requests.get(contents['url'])
@@ -57,49 +53,57 @@ def __get_main_measures(dimensions):
         json_content = json.loads(response.content)
         # Get the content to a DataFrame
         frame = pd.DataFrame(json_content['value'])
+        
         # Write back to dimensions dict
         dimensions[dim]['response'] = response
         dimensions[dim]['json'] = json
         dimensions[dim]['content'] = frame
+    
     return dimensions
 
-# Now, we load indicator data, using an async method
-async def __get_maindata_async(dimensions, test = False):
+def __extract_indicator_urls(dimensions):
+    """Helper function to pull out a list of indicators and URLs from dimensions
     """
-    I think the method for this currently is crap. Need to review (I'm not good
-    with async method).
-    
-    From the list of indicators in the dimensions['indicator'] dataframe 
-    (ind_frame), make a load of async calls to retrive the request responses.
-    
-    Handle errors and empty returns by recalling.
+    indicators_frame = dimensions['indicators']['content']
+    indicator_codes = indicators_frame.IndicatorCode.unique()
+    indicators_urls = {code: f'{root}/{code}' for code in indicator_codes}
+    return indicators_urls
 
+# Now, we load indicator data, using an async method
+async def __get_maindata_async(indicators_urls, test = False):
+    """
+    Makes requests asynchronously for all the indicator URLs to pull >2,300 API
+    endpoints.
+    
+    TODO: Review and improve the way this async functionality has been used.
     Parameters
     ----------
-    dimensions : dict ( key: dict (key : pd.DataFrame))
-        The dimensions['indicators']['content'] DataFrame is all that's needed
-
+    indicators_urls : dict (indicator: url)
+        A dictionary of indicators and their API URLs to retrieve
     Returns
     -------
     responses : dict
         A dictionary of {indicator: request response}
     """
-    indicators_frame = dimensions['indicators']['content']
-    indicator_codes = indicators_frame.IndicatorCode.unique()
-    indicators_urls = {code: f'{root}/{code}' for code in indicator_codes}
+    # If we want to just test this function, we'll pull the first 250 only
     if test:
         indicators_urls = {k: indicators_urls[k] for k in list(indicators_urls)[:250]}
-    amount = len(indicators_urls)
     
-    # Async get the bulk, retrying whilst fails
+    # Set up some control parameters
     final_responses = []
     iu = indicators_urls.copy()
     start_amount = len(iu)
+    
+    # Use a while loop to kep trying to async scrape the API, retrying as long as there are still failed responses
     start = time.time()
     while len(iu) > 0:
         amount = len(iu)
-        task = asyncio.create_task(main(iu, amount))
+        
+        # Create a task for scraping all the 'iu' URLs, and await it
+        task = asyncio.create_task(main(iu))
         responses = await task
+        
+        # Only once it's done do we want to progress, so we wait for task.done()
         if task.done():
             print('\n\n\n')
             # Add successful responses
@@ -110,9 +114,11 @@ async def __get_maindata_async(dimensions, test = False):
             iu = {code: val for code, val in indicators_urls.items() if code in failed_resp}
             print(f'Of {amount} requests, {len(iu)} failed. Retrying')
             print('\n\n\n')
+    # Report on time taken once we've got successful responses for all URLs
     end = time.time()
     print(f'Took {end - start} seconds to pull {start_amount} websites.')
     
+    # Format final_responses nicely in a dictionary
     del responses, failed_resp, iu, amount, start, end
     responses = {}
     for d in final_responses:

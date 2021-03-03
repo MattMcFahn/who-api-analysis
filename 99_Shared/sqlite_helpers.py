@@ -1,5 +1,8 @@
 """
- Helper functions to connect to and write SQLite files.
+ Helper functions to connect to and write local SQLite files. Utilised 
+ currently for data storage as a "staged" phase, but may evolve into a way to 
+ break up the data after cleaning, and modelling.
+ 
  -----------------------------------
  Created on Wed Feb 24 15:52:43 2021
  @author: matthew.mcfahn
@@ -12,11 +15,7 @@ from sqlite3 import Error
 from getpass import getuser
 import os
 
-# import data_retrieval
-
-# dimensions = data_retrieval.__get_main_measures(data_retrieval.dimensions)
-# responses = data_retrieval.__get_maindata_async(dimensions)
-
+# Set up the out directory, based on the user, and whether the OS is Mac or Windows
 if os.name == 'posix':
     outdir = f'/Users/{getuser()}/Documents'
 else:
@@ -25,14 +24,11 @@ sqlite_name = 'WHO_Data'
 
 def create_connection(db_file):
     """Create a connection to the SQLite database specified by db_file"""
-    conn = None
     try:
         conn = sqlite3.connect(db_file)
         return conn
     except Error as e:
-        print(e)
-
-    return conn
+        raise Exception(f'SQLite connection failed with error code {e}')
 
 def __responses_to_sqlite(responses, outdir = outdir, sqlite_name = sqlite_name):
     """
@@ -40,15 +36,13 @@ def __responses_to_sqlite(responses, outdir = outdir, sqlite_name = sqlite_name)
     
     Takes the contents of the responses dict, converts to JSON in sequence, and
     outputs to a sqlite file.
-    
-    TODO: From investigating the SQLite3 currently out, improve handling of different cases...
-    
+        
     Parameters
     ----------
     responses : dict
-        The http responses from the WHO api
+        The http responses from the WHO API
     outdir : str
-        Location to be output to
+        A local location to be output to on SSD
     sqlite_name : str
         Name of the sqlite3 file to be written
 
@@ -56,11 +50,11 @@ def __responses_to_sqlite(responses, outdir = outdir, sqlite_name = sqlite_name)
     -------
     None
     """
-    # Create connection, make table for responses
+    # Create connection
     db_file = f'{outdir}/{sqlite_name}.sqlite3'
     conn = create_connection(db_file)
     
-    # Define the structure of the data table, with datatypes
+    # Define the structure of the 'indicator_data' table, with datatypes
     create_table_sql = """CREATE TABLE IF NOT EXISTS indicator_data (
                                     ID integer PRIMARY KEY,
                                     IndicatorCode varchar(100) NOT NULL,
@@ -86,57 +80,40 @@ def __responses_to_sqlite(responses, outdir = outdir, sqlite_name = sqlite_name)
                                     TimeDimensionBegin datetime,
                                     TimeDimensionEnd datetime
                    );"""
-    # Create table
-    if conn is not None:
-        # create projects table
-        try:
-            c = conn.cursor()
-            c.execute(create_table_sql)
-        except Error as e:
-            print(e)
-
-    else:
-        print("Error! cannot create the database connection.")    
-        return None
+    # Create 'indicator_data' table
+    try:
+        c = conn.cursor()
+        c.execute(create_table_sql)
+    except Error as e:
+        raise Exception(f'Creating SQLite table failed with error code {e}')
     
-    # Update table with results from responses
+    # Finally, update table with results from responses
     for key, response in responses.items():
-        print(f'Key: {key}')
+        print(f'Inserting data for: {key}')
         frame = pd.DataFrame(json.loads(response)['value'])
         frame.to_sql(name = 'data', con = conn, if_exists = 'append', index = False)
+    
+    # Close connection
     conn.close()
     return None
 
 def __dimensions_to_sqlite(dimensions, outdir = outdir, sqlite_name = sqlite_name):
-    """
-    Very rough - Doesn't currently bother specifying the PK, Data types etc.
-    in the resultant tables...
-    """
-    # Create connection, make table for responses
+    """Very simple data dump of the dimensions data pulled by __get_main_measures"""
+    
+    # Create connection
     db_file = f'{outdir}/{sqlite_name}.sqlite3'
     conn = create_connection(db_file)
     
     for key, contents in dimensions.items():
         frame = contents['content']
+        # Just use inbuilt pandas function to write to SQLite via conn
         frame.to_sql(name = key, con = conn, index = False)
+    
     conn.close()
     return None
 
 def __load_db_to_pandas(db_file, table_name):
-    """
-    
-    Parameters
-    ----------
-    db_file : str
-        Path to the SQlite3 database
-    table : str
-        Name of the table to load
-
-    Returns
-    -------
-    dataframe : pd.DataFrame()
-        The specified table as a pandas dataframe
-    """
+    """Pulls the table specified from the database, returning as pd.DataFrame"""
     conn = create_connection(db_file)
     
     dataframe = pd.read_sql(sql = f"""SELECT * FROM {table_name}""", con = conn)
@@ -153,7 +130,6 @@ def __run_sql_on_db(db_file, query):
         Path to the SQlite3 database
     query : str
         SQL query
-
     Returns
     -------
     df : pd.DataFrame()

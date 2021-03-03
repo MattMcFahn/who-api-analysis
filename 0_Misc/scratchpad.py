@@ -1,7 +1,10 @@
 """
-Created on Thu Feb 25 11:52:30 2021
-
-@author: matthew.mcfahn
+ A place for messing about whilst developing data cleaning for the WHO GHO 
+ data. Should be deleted later.
+ 
+ ----------------------------------- 
+ Created on Thu Feb 25 11:52:30 2021
+ @author: matthew.mcfahn
 """
 
 import sqlite_helpers

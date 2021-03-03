@@ -35,7 +35,6 @@
 """
 
 import re
-import numpy as np
 
 def __identify_cases(string):
     """
@@ -74,10 +73,10 @@ def __identify_cases(string):
     
     Returns
     -------
-    case : int
-        A number identifying what kind of case this string falls under
+    case : set
+        A set of the codes corresponding to paterns found in the string
     """
-    # Define patterns
+    # Define patterns (messy and inefficient, but works)
     patterns = {}
     patterns[1] = "(\d+(\.\d+)?)( )?\[(\d+(\.\d+)?)( )?-( )?(\d+(\.\d+)?)\]" # Case 1, a bit involved due to decimals
     patterns[2] = "(\[)?(\d+(\.\d+)?)( )?-( )?(\d+(\.\d+)?)(\])?" # Simpler case 2
@@ -93,7 +92,7 @@ def __identify_cases(string):
 
     patterns[13] = "(\[)?(\d+([\.|,]\d+)?)(\])?/(\[)?(\d+([\.|,]\d+)?)(\])?/(\[)?(\d+([\.|,]\d+)?)(\])?"
     patterns[14] = "(\[)?(\d+(\.\d+)?)(\])?/(\[)?(\d+(\.\d+)?)(\])?"
-    patterns[15] = "(\d+(\.\d+)?)" #TODO - Figure this one out
+    patterns[15] = "(\d+(\.\d+)?)" 
 
     patterns[19] = "'(\d+(\.\d+)?)-( )?(\d+(\.\d+)?)"
     patterns[20] = "\[[1-9(\.), ]"
@@ -106,7 +105,7 @@ def __identify_cases(string):
     patterns[27] = '\d+(,\d+){1}?(\.\d+)?/\d+(,\d+){1}?(\.\d+)?'
     patterns[28] = '\d+  - \d+'
     
-    # TODO: Replace with just single key
+    # Identify all cases that apply
     codes = set()
     for key, pattern in patterns.items():
         if bool(re.match(pattern, string)):
@@ -128,7 +127,7 @@ def __group_cases(df):
 
     Returns
     -------
-    df : pd.DataFrame
+    df : pd.DataFrame()
         Adds a 'MainCase' and 'Group' identifier
     """
     # Hacks... should work into regex really.
@@ -148,6 +147,7 @@ def __group_cases(df):
     df.loc[~(df['Cases'].isna()), 'MainCase'] = df.loc[~(df['Cases'].isna()), 'Cases'].apply(min)
     df['MainCase'].fillna(0, inplace = True)
     
+    # Hacks - later regexes are corner cases. These lines use them to overwrite
     df.loc[df['Cases'] == {10, 15}, 'MainCase'] = 15
     df.loc[df['Cases'] == {7, 8, 11}, 'MainCase'] = 11
     df.loc[df['Cases'] == {20, 23}, 'MainCase'] = 23
@@ -194,12 +194,12 @@ def __make_replacements(df):
     
     Parameters
     ----------
-    df : pd.DataFrame
+    df : pd.DataFrame()
         The 'Likenumber' cases with groupings identified
 
     Returns
     -------
-    df : pd.DataFrame
+    df : pd.DataFrame()
         The same frame, with new 'NumericValue_New', 'Low_New' and 'High_New'
         appended
     """
@@ -209,8 +209,7 @@ def __make_replacements(df):
     df['Numbers'] = df['Value'].apply(lambda string: [x.group() for x in re.finditer(decimal_regex, string)])
     df['Numbers'] = df['Numbers'].apply(lambda x: sorted(x, reverse = True))
     
-    number_of_values_by_group = {1:3,2:2,3:3,4:1,5:1,6:1,7:1}
-    
+    ### - Apply based on groups
     # Group 1: Write directly for all three vals
     group_number = 1
     df.loc[df['Group'] == group_number & df['High'].notna(), 'High'] = df.loc[df['Group'] == group_number & df['High'].notna(), 'Numbers'].apply(lambda x: x[0])
@@ -267,6 +266,7 @@ def __clean_likenumbers(likenumbers_df):
     """
     df = likenumbers_df.copy()
     original_cols = df.columns
+    
     # Strip trailing and leading whitespace
     df['Value'] = df['Value'].str.strip()
     # Replace weird dashes
