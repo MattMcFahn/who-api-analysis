@@ -56,7 +56,7 @@ def __get_main_measures(dimensions):
         
         # Write back to dimensions dict
         dimensions[dim]['response'] = response
-        dimensions[dim]['json'] = json
+        dimensions[dim]['json'] = json_content
         dimensions[dim]['content'] = frame
     
     return dimensions
