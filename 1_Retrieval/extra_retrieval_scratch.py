@@ -8,26 +8,16 @@ import requests
 import json
 import pandas as pd
 
-import data_retrieval
-
 # Test using the Athena API for the data sources info
 path = r'https://apps.who.int/gho/athena/data/'
 
-query_params = '?format=json' # We want json returns
+query_params = '?format=json' # We want json returns, rather than XML
 
 response = requests.get(f'{path}{query_params}')
 # Load to JSON
 json_content = json.loads(response.content)
 
-# Looks like we can use json_content['dimension'] to figure out how to pull some metadata we want!
-
-# Stuff we want:
-#   * GHOCAT: Indicator Categories
-#   * DATASOURCE: Data source(s)
-#   * PUBLISHSTATE: Publish States (not sure what this is, but worth investigating)
-# Then from the 'dataset' return
-#   * FCD: Fact Core Data
-#   * FD: Fact Data
+# Looks like we can use json_content['dimension'] from the above to figure out how to pull some metadata we want!
 
 desired_metadata = {'indicator_categories':{'url':f'{path}GHOCAT/{query_params}'},
                     'indicators':{'url':f'{path}GHO/{query_params}'},
@@ -66,6 +56,8 @@ def __get_main_measures(desired_metadata):
     
     return desired_metadata
 
+desired_metadata = __get_main_measures(desired_metadata)
+
 # OK, of above, only 'datasources' is useful. We need to extract the pandas/tabular info using:
 #   JSON['dimension'][0]['code'] < - A list of dictionaries
 # From each dictionary, we want to pull out: ['label', 'display','url'], and ['attr'][0]['value'] when attr is not empty.
@@ -77,3 +69,37 @@ def __get_main_measures(desired_metadata):
 # We can use the 'DEFINITION_XML' to make more requests to get extra info, if we need!
 
 # For a dedicated wrapper, I'll want to switch to the Athena API, I think
+
+### - Pull out a pandas dataframe from DATASOURCES
+datasources = desired_metadata['datasources']['json']['dimension'][0]['code']
+datasources = [{**x, **{'source_description':None}} for x in datasources if len(x['attr']) == 0] + [{**x, **{'source_description':x['attr'][0]['value']}} for x in datasources if len(x['attr']) == 1]
+
+sources_df = pd.DataFrame(datasources)
+sources_df.drop(columns = {'attr'}, inplace = True)
+
+### - Similarly for 'indicators', getting groupings
+indicators = desired_metadata['indicators']['json']['dimension'][0]['code']
+indicators = [x for x in indicators if len(x['attr']) == 0] + \
+    [{**x, **{y['category']:y['value'] for y in x['attr']}} for x in indicators if len(x['attr']) > 0]
+
+indicators_df = pd.DataFrame(indicators)
+indicators_df['attr'].apply(pd.Series)
+indicators_df.drop(columns = {'RENDERER_ID', 'attr', 'IMR_ID'}, inplace = True)
+### - Indicator categories doesn't make much sense to me... leave it!
+
+# We'll import the existing indicator table, and just update these ones with the new info, and rewrite
+import sqlite_helpers
+db_file = f'{sqlite_helpers.outdir}/{sqlite_helpers.sqlite_name}.sqlite3'
+table_name = 'indicators'
+
+curr_inds_df = sqlite_helpers.__load_db_to_pandas(db_file, table_name)
+curr_inds_df = curr_inds_df.merge(indicators_df, left_on = ['IndicatorCode'], right_on = ['label'],
+                                  how = 'left', validate = 'one_to_one')
+# Cut columns, write the indicators and sources tables to SQLite3
+curr_inds_df = curr_inds_df[['IndicatorCode', 'IndicatorName','display_sequence','url', 'DEFINITION_XML','CATEGORY']]
+
+sqlite_helpers.__frame_to_sqlite(curr_inds_df, 'indicators', db_file, if_exists = 'replace')
+sqlite_helpers.__frame_to_sqlite(sources_df, 'data_sources', db_file, if_exists = 'replace')
+
+
+

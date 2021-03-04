@@ -112,6 +112,28 @@ def __dimensions_to_sqlite(dimensions, outdir = outdir, sqlite_name = sqlite_nam
     conn.close()
     return None
 
+def __frame_to_sqlite(frame, table_name, db_file, if_exists = 'fail'):
+    """
+    Writes a pandas dataframe to a table in the existing db_file
+    Parameters
+    ----------
+    frame : pd.DataFrame()
+        The frame to be written to the table
+    table_name : str
+        The name of the table in the database
+    db_file : str
+        The filepath to the database file
+    Returns
+    -------
+    None
+    """
+    conn = create_connection(db_file)
+    
+    frame.to_sql(name = table_name, con = conn, index = False, if_exists = if_exists)
+    
+    conn.close()
+    return None
+
 def __load_db_to_pandas(db_file, table_name):
     """Pulls the table specified from the database, returning as pd.DataFrame"""
     conn = create_connection(db_file)
