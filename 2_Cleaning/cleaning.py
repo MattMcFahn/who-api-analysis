@@ -19,11 +19,11 @@ pd.options.mode.chained_assignment = None  # default='warn'
 import numpy as np
 
 import regex_cleaning
-from who_helpers import __isnumber, __makenumber, __likenumber
+from who_helpers import __isnumber, __makenumber, __likenumber, __camel_to_snake
 import sqlite_helpers
 import data_sources_scraping
 
-db_file = db_file = f'{sqlite_helpers.outdir}/{sqlite_helpers.sqlite_name}.sqlite3'
+db_file = f'{sqlite_helpers.outdir}/{sqlite_helpers.sqlite_name}.sqlite3'
 out_db_file = f'{sqlite_helpers.outdir}/who_gho_cleaned.sqlite3'
 
 def __data_suppression(indicator_dataframe):
@@ -291,27 +291,28 @@ def __clean_indicator_info(indicators):
     categories['UHC'] = 'Universal Health Coverage'
     categories['HIV/AIDS and other STIs'] = 'HIV/AIDS And Other STIs'
     categories['ICD'] = 'ICD'
+    categories['Noncommunicable Diseases Ccs'] = 'Noncommunicable Diseases'
     categories = {key: val.replace('Amr','AMR').replace('Goe','GOe').replace('Rsud','RSUD').replace('And','and') 
                  for (key, val) in categories.items()}
     indicators['CATEGORY'] = indicators['CATEGORY'].map(categories)
     
     # Add some categories based on desk research. 13 indicators still not mapped
     indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('GDO_'), 'CATEGORY'] = 'Global Dementia Observatory'
-    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('EMF'), 'CATEGORY'] = 'Electromagnetic fields'
+    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('EMF'), 'CATEGORY'] = 'Electromagnetic Fields'
     indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('FAMILYPLANNINGUNPDUHC'), 'CATEGORY'] = 'Sexual and Reproductive Health'
     indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SG_DMK_SRCR_FN_ZS'), 'CATEGORY'] = 'Sexual and Reproductive Health'
     indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('GHED_'), 'CATEGORY'] = 'Health Financing'
     indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('_UHC'), 'CATEGORY'] = 'Universal Health Coverage'
-    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('IHRSPAR_'), 'CATEGORY'] = 'International Health Regulations (2005) monitoring framework,SPAR'
+    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('IHRSPAR_'), 'CATEGORY'] = 'International Health Regulations (2005) Monitoring Framework'
     indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('NLIS_'), 'CATEGORY'] = 'Nutrition'
     indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('PHE_'), 'CATEGORY'] = 'Public Health and Environment'
     indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('RADON'), 'CATEGORY'] = 'Public Health and Environment'
     indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SA_'), 'CATEGORY'] = 'Global Information System on Alcohol and Health'
-    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SE_'), 'CATEGORY'] = "Global strategy for women's, children's and adolescents' health"
-    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SG_'), 'CATEGORY'] = "Global strategy for women's, children's and adolescents' health"
-    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SH_'), 'CATEGORY'] = "Global strategy for women's, children's and adolescents' health"
-    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SI_'), 'CATEGORY'] = "Global strategy for women's, children's and adolescents' health"
-    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SP_'), 'CATEGORY'] = "Global strategy for women's, children's and adolescents' health"
+    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SE_'), 'CATEGORY'] = "Global Strategy For Women's, Children's and Adolescents' Health"
+    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SG_'), 'CATEGORY'] = "Global Strategy For Women's, Children's and Adolescents' Health"
+    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SH_'), 'CATEGORY'] = "Global Strategy For Women's, Children's and Adolescents' Health"
+    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SI_'), 'CATEGORY'] = "Global Strategy For Women's, Children's and Adolescents' Health"
+    indicators.loc[indicators['CATEGORY'].isna() & indicators['IndicatorCode'].str.contains('SP_'), 'CATEGORY'] = "Global Strategy For Women's, Children's and Adolescents' Health"
     
     # Reorder columns
     indicators = indicators[['IndicatorCode', 'IndicatorName', 'CATEGORY', 'display_sequence', 'url','DEFINITION_XML']]
@@ -340,6 +341,20 @@ def __clean_sources(sources_df):
     # Now turn to cleaning
     # TODO: More cleaning - this is messy AF
     return sources_df
+
+def __update_column_names(final_frames):
+    """Simple helper to snake_case column names"""
+    for key, dataframe in final_frames.items():
+        new_cols = []
+        for column in dataframe.columns:
+            if column.upper() == column:
+                new_cols += [column.lower()]
+            else:
+                new_cols += [__camel_to_snake(column)]
+        dataframe.columns = new_cols
+        final_frames[key] = dataframe
+        
+    return final_frames
 
 def main(db_file, out_db_file):
     """
@@ -413,6 +428,8 @@ def main(db_file, out_db_file):
     final_frames['data_sources'] = sources_df
     print("[SOURCES] Cleaning info for data sources... DONE")
     
+    ### - Update column names - snake_case as convention
+    final_frames = __update_column_names(final_frames)
     
     ### Cleaning completed - Output to a new SQLite database
     sqlite_helpers.__dimensions_to_sqlite(final_frames, db_file = out_db_file, val_is_frame = True)

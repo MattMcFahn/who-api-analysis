@@ -8,6 +8,13 @@
  @author: matthew.mcfahn
 """
 
+import re
+
+def __camel_to_snake(string):
+    """Turn a CamelCase string to a snake_case string"""
+    string = re.sub(r'(?<!^)(?=[A-Z])', '_', string).lower()
+    return string
+
 def __strip_string(value):
     """Simple helper - strip string, don't change numbers"""
     if not type(value) == str:
