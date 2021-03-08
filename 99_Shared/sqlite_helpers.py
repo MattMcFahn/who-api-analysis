@@ -17,12 +17,15 @@ import os
 
 # Set up the out directory, based on the user, and whether the OS is Mac or Windows
 if os.name == 'posix':
-    outdir = f'/Users/{getuser()}/Documents'
+    outdir = f'/Users/{getuser()}/Documents/World Health Organisation project'
 else:
-    outdir = fr'C:\Users\{getuser()}\Documents'
+    outdir = fr'C:\Users\{getuser()}\Documents\World Health Organisation project'
 sqlite_name = 'WHO_Data'
 
-def create_connection(db_file):
+db_file = f'{outdir}/{sqlite_name}.sqlite3'
+
+### - Generic helpers
+def create_connection(db_file = db_file):
     """Create a connection to the SQLite database specified by db_file"""
     try:
         conn = sqlite3.connect(db_file)
@@ -30,9 +33,119 @@ def create_connection(db_file):
     except Error as e:
         raise Exception(f'SQLite connection failed with error code {e}')
 
-def __responses_to_sqlite(responses, outdir = outdir, sqlite_name = sqlite_name):
+def __frame_to_sqlite(frame, table_name, db_file, if_exists = 'fail'):
     """
-    Probably best to do in a for-loop as this will overload RAM
+    Writes a pandas dataframe to a table in the existing db_file
+    Parameters
+    ----------
+    frame : pd.DataFrame()
+        The frame to be written to the table
+    table_name : str
+        The name of the table in the database
+    db_file : str
+        The filepath to the database file
+    Returns
+    -------
+    None
+    """
+    conn = create_connection(db_file)
+    
+    frame.to_sql(name = table_name, con = conn, index = False, if_exists = if_exists)
+    
+    conn.close()
+    return None
+
+def __load_db_to_pandas(db_file, table_names):
+    """
+    Pulls the table(s) specified from the database, returning as pd.DataFrame
+    if one table, and wrapped in a dictionary if > 1 table
+    
+    Parameters
+    ----------
+    db_file : str
+        Path to the SQlite3 database
+    table_names : str / list
+        The tables to be retrieved
+    Returns
+    -------
+    dataframes : dict / pd.DataFrame()
+        If type(table_names) == str, then returns a pd.DataFrame() of that table
+        If type(table_names) == list, then returns a dict of 
+        {table : pd.DataFrame for table in table_names}
+    """
+    conn = create_connection(db_file)
+    # Exception catching
+    if not (type(table_names) == list or type(table_names) == str):
+        raise Exception("Incorrect 'table_names' param passed. Review")
+    
+    # Deal with string case
+    if type(table_names) == str:
+        print(f"""[SQLite] Loading table: {table_names}... """)
+        dataframe = pd.read_sql(sql = f"""SELECT * FROM {table_names}""", con = conn)
+        print(f"""[SQLite] Loading table: {table_names}... DONE""")
+        conn.close()
+        return dataframe
+    else:
+        pass
+    
+    # Main logic, list
+    dataframes = {}
+    for table in table_names:
+        print(f"""[SQLite] Loading table: {table}...""")
+        dataframes[table] = pd.read_sql(sql = f"""SELECT * FROM {table}""", con = conn)
+        print(f"""[SQLite] Loading table: {table}... DONE""")
+    return dataframes
+
+def __run_sql_on_db(db_file, query):
+    """
+    Generate a pandas dataframe from the SQL query on the db_file
+    
+    Parameters
+    ----------
+    db_file : str
+        Path to the SQlite3 database
+    query : str
+        SQL query
+    Returns
+    -------
+    df : pd.DataFrame()
+        Dataframe of return result from the query
+    """
+    conn = create_connection(db_file)
+    
+    dataframe = pd.read_sql(sql = query, con = conn)
+    conn.close()
+    return dataframe
+
+def __get_table_schema(db_file):
+    """
+    Get the table schema for the given db_file
+
+    Parameters
+    ----------
+    db_file : str
+        Filepath to the specified database
+
+    Returns
+    -------
+    table_schema : list
+        A list of tables to be found in the database
+    """
+    if not os.path.exists(db_file):
+        raise Exception(f"The {db_file} object wasn't found on your SSD. Please review.")
+    
+    conn = create_connection(db_file)
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    table_schema = [x[0] for x in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return table_schema
+
+### - Bespoke functions
+def __responses_to_sqlite(responses, db_file = db_file):
+    """
+    Bespoke function: outputs all responses for the indicator_data table.
     
     Takes the contents of the responses dict, converts to JSON in sequence, and
     outputs to a sqlite file.
@@ -41,17 +154,13 @@ def __responses_to_sqlite(responses, outdir = outdir, sqlite_name = sqlite_name)
     ----------
     responses : dict
         The http responses from the WHO API
-    outdir : str
-        A local location to be output to on SSD
-    sqlite_name : str
-        Name of the sqlite3 file to be written
-
+    db_file : str
+        Filepath to the database to output to
     Returns
     -------
     None
     """
     # Create connection
-    db_file = f'{outdir}/{sqlite_name}.sqlite3'
     conn = create_connection(db_file)
     
     # Define the structure of the 'indicator_data' table, with datatypes
@@ -82,8 +191,8 @@ def __responses_to_sqlite(responses, outdir = outdir, sqlite_name = sqlite_name)
                    );"""
     # Create 'indicator_data' table
     try:
-        c = conn.cursor()
-        c.execute(create_table_sql)
+        cur = conn.cursor()
+        cur.execute(create_table_sql)
     except Error as e:
         raise Exception(f'Creating SQLite table failed with error code {e}')
     
@@ -97,68 +206,21 @@ def __responses_to_sqlite(responses, outdir = outdir, sqlite_name = sqlite_name)
     conn.close()
     return None
 
-def __dimensions_to_sqlite(dimensions, outdir = outdir, sqlite_name = sqlite_name):
+def __dimensions_to_sqlite(dimensions, db_file = db_file, val_is_frame = False):
     """Very simple data dump of the dimensions data pulled by __get_main_measures"""
-    
+    print(f'Outputting to SQLite database: {db_file}')
     # Create connection
-    db_file = f'{outdir}/{sqlite_name}.sqlite3'
     conn = create_connection(db_file)
     
     for key, contents in dimensions.items():
-        frame = contents['content']
+        print(f'Outputting: {key}')
+        if not val_is_frame:
+            frame = contents['content']
+        else:
+            frame = contents
         # Just use inbuilt pandas function to write to SQLite via conn
         frame.to_sql(name = key, con = conn, index = False)
     
     conn.close()
+    print(f'Outputting to SQLite database: {db_file} <<< DONE')
     return None
-
-def __frame_to_sqlite(frame, table_name, db_file, if_exists = 'fail'):
-    """
-    Writes a pandas dataframe to a table in the existing db_file
-    Parameters
-    ----------
-    frame : pd.DataFrame()
-        The frame to be written to the table
-    table_name : str
-        The name of the table in the database
-    db_file : str
-        The filepath to the database file
-    Returns
-    -------
-    None
-    """
-    conn = create_connection(db_file)
-    
-    frame.to_sql(name = table_name, con = conn, index = False, if_exists = if_exists)
-    
-    conn.close()
-    return None
-
-def __load_db_to_pandas(db_file, table_name):
-    """Pulls the table specified from the database, returning as pd.DataFrame"""
-    conn = create_connection(db_file)
-    
-    dataframe = pd.read_sql(sql = f"""SELECT * FROM {table_name}""", con = conn)
-    conn.close()
-    return dataframe
-
-def __run_sql_on_db(db_file, query):
-    """
-    Generate a pandas dataframe from the SQL query on the db_file
-    
-    Parameters
-    ----------
-    db_file : str
-        Path to the SQlite3 database
-    query : str
-        SQL query
-    Returns
-    -------
-    df : pd.DataFrame()
-        Dataframe of return result from the query
-    """
-    conn = create_connection(db_file)
-    
-    dataframe = pd.read_sql(sql = query, con = conn)
-    conn.close()
-    return dataframe

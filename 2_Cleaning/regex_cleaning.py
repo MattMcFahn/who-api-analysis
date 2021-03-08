@@ -185,6 +185,22 @@ def __group_cases(df):
     
     return df
 
+def __hackgroups(df):
+    """
+    The Grouping and Regex puts a couple cases into Group 7, when they should be
+    in other cases. This function just deals with them in isolation...
+    """
+    group_number = 7
+    decimal_regex = r'\d+(\.\d+)?'
+    # Three unique numbers: Should be group 1
+    df.loc[(df['Group'] == group_number) & (df['Numbers'].apply(lambda x: len(x)) == 3), 'Group'] = 1
+    
+    # "Four" unique numbers - needs a hack to make it group 2
+    df.loc[(df['Group'] == group_number) & (df['Numbers'].apply(lambda x: len(x)) == 4), 'Value'] = df.loc[(df['Group'] == group_number) & (df['Numbers'].apply(lambda x: len(x)) == 4)]['Value'].str.replace(' ','')
+    df.loc[(df['Group'] == group_number) & (df['Numbers'].apply(lambda x: len(x)) == 4), 'Numbers'] = df.loc[(df['Group'] == group_number) & (df['Numbers'].apply(lambda x: len(x)) == 4), 'Value'].apply(lambda string: [float(x.group()) for x in re.finditer(decimal_regex, string)])
+    df.loc[(df['Group'] == group_number) & (df['Numbers'].apply(lambda x: len(x)) == 2), 'Group'] = 2
+    return df
+
 def __make_replacements(df):
     """
     Based on the 'Group' column, extracts the numeric parts of the 'Value' col
@@ -206,35 +222,36 @@ def __make_replacements(df):
     df['Value'] = df['Value'].str.replace(',','')
     decimal_regex = r'\d+(\.\d+)?'
     
-    df['Numbers'] = df['Value'].apply(lambda string: [x.group() for x in re.finditer(decimal_regex, string)])
+    df['Numbers'] = df['Value'].apply(lambda string: [float(x.group()) for x in re.finditer(decimal_regex, string)])
     df['Numbers'] = df['Numbers'].apply(lambda x: sorted(x, reverse = True))
+    df = __hackgroups(df)
     
     ### - Apply based on groups
     # Group 1: Write directly for all three vals
     group_number = 1
-    df.loc[df['Group'] == group_number & df['High'].notna(), 'High'] = df.loc[df['Group'] == group_number & df['High'].notna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[df['Group'] == group_number & df['High'].isna(), 'High'] = df.loc[df['Group'] == group_number & df['High'].isna(), 'Numbers'].apply(lambda x: x[0])
     df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[1])
-    df.loc[df['Group'] == group_number & df['Low'].notna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].notna(), 'Numbers'].apply(lambda x: x[2])
+    df.loc[df['Group'] == group_number & df['Low'].isna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].isna(), 'Numbers'].apply(lambda x: x[2])
     
     # Group 2: Write high and low, and average numeric
     group_number = 2
-    df.loc[df['Group'] == group_number & df['High'].notna(), 'High'] = df.loc[df['Group'] == group_number & df['High'].notna(), 'Numbers'].apply(lambda x: x[0])
-    df.loc[df['Group'] == group_number & df['Low'].notna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].notna(), 'Numbers'].apply(lambda x: x[1])
-    df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number][['Low','High']].mean(axis = 1)
+    df.loc[(df['Group'] == group_number) & df['High'].isna(), 'High'] = df.loc[(df['Group'] == group_number) & df['High'].isna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[(df['Group'] == group_number) & df['Low'].isna(), 'Low'] = df.loc[(df['Group'] == group_number) & df['Low'].isna(), 'Numbers'].apply(lambda x: x[1])
+    df.loc[(df['Group'] == group_number), 'NumericValue'] = df.loc[df['Group'] == group_number][['Low','High']].mean(axis = 1)
     
     # Group 3: Write low and numeric only from 2 unique vals
     group_number = 3
-    df.loc[df['Group'] == group_number & df['Low'].notna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].notna(), 'Numbers'].apply(lambda x: x[len(x) - 1])
+    df.loc[(df['Group'] == group_number) & df['Low'].isna(), 'Low'] = df.loc[(df['Group'] == group_number) & df['Low'].isna(), 'Numbers'].apply(lambda x: x[len(x) - 1])
     df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[0])
     
     # Group 4: Write low and numeric only from 1 unique val
     group_number = 4
-    df.loc[df['Group'] == group_number & df['Low'].notna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].notna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[(df['Group'] == group_number) & df['Low'].isna(), 'Low'] = df.loc[(df['Group'] == group_number) & df['Low'].isna(), 'Numbers'].apply(lambda x: x[0])
     df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[0])
     
     # Group 5: Write numeric and high only from 1 unique val
     group_number = 5
-    df.loc[df['Group'] == group_number & df['High'].notna(), 'High'] = df.loc[df['Group'] == group_number & df['High'].notna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[(df['Group'] == group_number) & df['High'].isna(), 'High'] = df.loc[(df['Group'] == group_number) & df['High'].isna(), 'Numbers'].apply(lambda x: x[0])
     df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[0])
 
     # Group 6: Write numeric only from 1 unique val
@@ -243,15 +260,16 @@ def __make_replacements(df):
 
     # Group 7: Write low, numeric, and high from 1 unique val
     group_number = 7
-    df.loc[df['Group'] == group_number & df['High'].notna(), 'High'] = df.loc[df['Group'] == group_number & df['High'].notna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[(df['Group'] == group_number) & df['High'].isna(), 'High'] = df.loc[(df['Group'] == group_number) & df['High'].isna(), 'Numbers'].apply(lambda x: x[0])
     df.loc[df['Group'] == group_number, 'NumericValue'] = df.loc[df['Group'] == group_number, 'Numbers'].apply(lambda x: x[0])
-    df.loc[df['Group'] == group_number & df['Low'].notna(), 'Low'] = df.loc[df['Group'] == group_number & df['Low'].notna(), 'Numbers'].apply(lambda x: x[0])
+    df.loc[(df['Group'] == group_number) & df['Low'].isna(), 'Low'] = df.loc[(df['Group'] == group_number) & df['Low'].isna(), 'Numbers'].apply(lambda x: x[0])
 
     return df
 
 def __clean_likenumbers(likenumbers_df):
     """
-    TODO
+    TODO: REVIEW THIS - THE __make_replacements() function isn't working.
+    FIX, then document correctly.
 
     Parameters
     ----------

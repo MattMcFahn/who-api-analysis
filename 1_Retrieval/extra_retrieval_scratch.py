@@ -21,7 +21,8 @@ json_content = json.loads(response.content)
 
 desired_metadata = {'indicator_categories':{'url':f'{path}GHOCAT/{query_params}'},
                     'indicators':{'url':f'{path}GHO/{query_params}'},
-                    'datasources':{'url':f'{path}DATASOURCE/{query_params}'}
+                    'datasources':{'url':f'{path}DATASOURCE/{query_params}'},
+                    'location':{'url':f'{path}LOCATION/{query_params}'}
                     }
 
 # Tailor the data retrieval function for the Athena API
