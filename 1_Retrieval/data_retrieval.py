@@ -4,8 +4,8 @@
      https://www.who.int/data/gho/info/gho-odata-api
  
  There is another API available for the GHO, using Athena rather than OData. 
- As a more standard protocol, the OData API has been used here.
-    
+ TODO: Switch to Athena, and work in the functionality from 'extra_retrieval'
+ 
  -----------------------------------
  Created on Tue Feb 23 16:41:09 2021
  @author: matthew.mcfahn
@@ -75,7 +75,8 @@ async def __get_maindata_async(indicators_urls, test = False):
     Makes requests asynchronously for all the indicator URLs to pull >2,300 API
     endpoints.
     
-    TODO: Review and improve the way this async functionality has been used.
+    TODO: Review and improve the way this async functionality has been used
+    
     Parameters
     ----------
     indicators_urls : dict (indicator: url)
@@ -125,3 +126,5 @@ async def __get_maindata_async(indicators_urls, test = False):
         responses.update(d)
     
     return responses
+
+# NOTE: The above function must be called using "await __get_maindata_async(indicators_urls, test = False)"

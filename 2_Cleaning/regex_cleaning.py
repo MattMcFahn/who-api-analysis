@@ -70,7 +70,6 @@ def __identify_cases(string):
     ----------
     string : str
         The string containing some kind of numeric information to be parsed
-    
     Returns
     -------
     case : set
@@ -206,7 +205,7 @@ def __make_replacements(df):
     Based on the 'Group' column, extracts the numeric parts of the 'Value' col
     and fills in three new columns 'NumericValue_New', 'Low_New' and 'High_New'
     of the parsed information, for updating the original columns where they
-    are missing values.
+    are missing values
     
     Parameters
     ----------
@@ -268,9 +267,10 @@ def __make_replacements(df):
 
 def __clean_likenumbers(likenumbers_df):
     """
-    TODO: REVIEW THIS - THE __make_replacements() function isn't working.
-    FIX, then document correctly.
-
+    A helper function utilised during the cleaning module to parse the 'Value'
+    column of the indicator_data to pull out numerics for a couple cases where
+    'Value' is like a number. More info in the module docstring
+    
     Parameters
     ----------
     likenumbers_df : pd.DataFrame()

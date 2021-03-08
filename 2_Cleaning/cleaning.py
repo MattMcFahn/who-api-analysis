@@ -47,20 +47,20 @@ def __clean_bespoke_indicators(missing_value):
     """
     A number of indicators in the WHO GHO database use spaces instead of commas,
     e.g. a number is formatted as 10 453 000 000.00 instead of 10,453,000,000.00
-    or even 10453000000.00 as a float type.
+    or even 10453000000.00 as a float type
     
     This function handles those cases upfront, rather than editing them later
     via regex. This isn't particularly needed, as we don't need to fill these
-    columns for these indicators.
+    columns for these indicators
 
     Parameters
     ----------
-    missing_value : pd.DataFrame
+    missing_value : pd.DataFrame()
         The ingested data where 'NumericValue' is missing
 
     Returns
     -------
-    missing_value : pd.DataFrame
+    missing_value : pd.DataFrame()
         The same frame, where the 'Value' entries for these specific cases has
         had ' ' replaced by ','
     """
@@ -81,14 +81,6 @@ def __clean_bespoke_indicators(missing_value):
                                                'Data,not,available':'Data not available'})
     missing_value = unchanged.append(messy_df)    
     return missing_value
-
-def __strip_string(value):
-    """Simple helper - strip string, don't change numbers"""
-    if not type(value) == str:
-        pass
-    else:
-        value = value.replace(' ','').replace(',','').strip()
-    return value
 
 def __report_datafill_stats(dataframe, numerics, lows, highs):
     """Simple reporting helper"""
@@ -218,17 +210,20 @@ def clean_indicator_data(dataframe):
     """
     Takes the 'indicator_data' ingested as is, and cleans it:
         > Removes unneeded columns
-        > Fills some missing 'NumericValue', 'Low', 'High' columns by parsing 
-        'Value' for strings containing numbers
-        > AOB? 
-        TODO
+        > Fills some missing 'NumericValue', 'Low', 'High' columns where 
+        possible (see '__clean_numerical_values' for more info)
+        > Cuts other rows that we don't have all data for
+        
     Parameters
     ----------
     dataframe : pd.DataFrame()
         The 'indicator_data' table from the staging SQLite table
     Returns
     -------
-    TODO: Determine
+    dataframe : pd.DataFrame()
+        The 'indicator_data' table modified in place with the quality improvements
+    data_sources : pd.DataFrame()
+        A dataframe mapping (indicator, area, year) -> Data Source
     """
     # Cut out information about DataSources, and drop from the indicator data
     # NOTE: {Indicator, Year, Country} works MOST of the time, but NOT always: 102 cases where there are 2 data sources
@@ -255,7 +250,6 @@ def __clean_indicator_info(indicators):
     ----------
     indicators : pd.DataFrame()
         A dataframe of indicator information
-
     Returns
     -------
     indicators : pd.DataFrame()

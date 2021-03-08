@@ -1,7 +1,10 @@
 """
-Created on Wed Mar  3 12:47:41 2021
-
-@author: matthew.mcfahn
+ Developed as an extra ad-hoc bit of functionality - more info was needed from
+ the Athena API endpoint for both indicator categories and data sources.
+ 
+ -----------------------------------
+ Created on Wed Mar  3 12:47:41 2021
+ @author: matthew.mcfahn
 """
 
 import requests
@@ -58,18 +61,6 @@ def __get_main_measures(desired_metadata):
     return desired_metadata
 
 desired_metadata = __get_main_measures(desired_metadata)
-
-# OK, of above, only 'datasources' is useful. We need to extract the pandas/tabular info using:
-#   JSON['dimension'][0]['code'] < - A list of dictionaries
-# From each dictionary, we want to pull out: ['label', 'display','url'], and ['attr'][0]['value'] when attr is not empty.
-# Using this, we'll probably still have a lot of data sources where we don't have anything descriptive for the source, but we can try and pursue other methods to get info for those missing
-
-# OK, for indicators, we can get more by pulling out the json['dimension'][0]['code'] dict
-# From this, we can extract label and display as the 'label' and 'display' keys for each dict, and
-# Then we can get categories with ['attr'], combine all the dicts, and take the ones with key 'CATEGORY', and 'DEFINITION_XML'
-# We can use the 'DEFINITION_XML' to make more requests to get extra info, if we need!
-
-# For a dedicated wrapper, I'll want to switch to the Athena API, I think
 
 ### - Pull out a pandas dataframe from DATASOURCES
 datasources = desired_metadata['datasources']['json']['dimension'][0]['code']

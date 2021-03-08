@@ -8,6 +8,14 @@
  @author: matthew.mcfahn
 """
 
+def __strip_string(value):
+    """Simple helper - strip string, don't change numbers"""
+    if not type(value) == str:
+        pass
+    else:
+        value = value.replace(' ','').replace(',','').strip()
+    return value
+
 def __isnumber(value):
     """
     Helper function to indicate whether an object passed is a float in another format.

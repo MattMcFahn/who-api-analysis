@@ -26,6 +26,7 @@ async def get(url, indicator):
     IF request fails, returns
     indicator : str
         The same indicator name, so the request can be retried later
+    ELSE
     {indicator : resp}: dict(str: response}
         The indicator and the HTTP response from the request
     """
