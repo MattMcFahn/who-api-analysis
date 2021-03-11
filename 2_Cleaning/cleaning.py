@@ -342,6 +342,70 @@ def __clean_sources(sources_df):
     # TODO: More cleaning - this is messy AF
     return sources_df
 
+def __split_ind_data(indicator_dataframe):
+    """
+    Helper to split out indicator_dataframe into those with and without 
+    sub-dimensions
+    Parameters
+    ----------
+    indicator_dataframe : pd.DataFrame()
+        The cleaned indicator data
+    Returns
+    -------
+    indicator_dataframe : pd.DataFrame()
+        The cleaned indicator data for rows without sub-dimensions
+    granular_dataframe : pd.DataFrame()
+        The other rows of indicator data
+    """
+    # We'll split out a frame of 'Main' measures, and others.
+    main_dim = pd.DataFrame.from_dict({'dim_type': {0: 'AGEGROUP',
+                                                    1: 'AGEGROUP',
+                                                    2: 'ALCOHOLTYPE',
+                                                    3: 'ARCHIVE',
+                                                    4: 'CONSUMPTIONTYPE',
+                                                    5: 'DRUGPRESCRIPTION',
+                                                    6: 'EDUCATIONLEVEL',
+                                                    7: 'RESIDENCEAREATYPE',
+                                                    8: 'SEATTYPE',
+                                                    9: 'SEX',
+                                                    10: 'SOCIALCOSTTYPE',
+                                                    11: 'SUBSTANCETYPEDISORDER'},
+                                       'dim': {0: 'AGEAll',
+                                               1: 'YEARSALL',
+                                               2: 'SA_TOTAL',
+                                               3: 'Dec-19',
+                                               4: 'CONSUMPTION_TOTAL',
+                                               5: 'ANY_DOCTOR',
+                                               6: 'EDL_TOTL',
+                                               7: 'TOTL',
+                                               8: 'RS-DDC-ALLOCCUPANTS',
+                                               9: 'BTSX',
+                                               10: 'SA_TOTAL_COSTS',
+                                               11: 'BOTH_DISORDERS'}})
+    main_dim['main'] = 1
+    # Create a 'main_record' identifier
+    for i in [1,2,3]:
+        print(i)
+        merge_df = main_dim.rename(columns = {'dim_type':f'dim{i}_type','dim':f'dim{i}','main':f'main{i}'})
+        indicator_dataframe = indicator_dataframe.merge(merge_df, on = [f'dim{i}_type',f'dim{i}'],
+                                                        how = 'left', validate = 'many_to_one')
+    
+        indicator_dataframe.loc[indicator_dataframe[f'dim{i}'].isna(), f'main{i}'] = 1
+        indicator_dataframe[f'main{i}'].fillna(0, inplace = True)
+    # A record is 'main' iff all entries created are 1
+    indicator_dataframe['main'] = indicator_dataframe[['main1','main2','main3']].min(axis = 1)
+    indicator_dataframe.drop(columns = {'main1', 'main2', 'main3'}, inplace = True)
+    
+    # Split out - For ease, we'll just save 'granular_data' in a seperate backup table (unless later we find out we need it)
+    granular_dataframe = indicator_dataframe.loc[indicator_dataframe['main'] == 0].drop(columns = {'main'})
+    indicator_dataframe = indicator_dataframe.loc[indicator_dataframe['main'] == 1].drop(columns = {'main'})
+    
+    indicator_dataframe.drop(columns = {'dim1_type','dim1',
+                                   'dim2_type','dim2',
+                                   'dim3_type','dim3'}, inplace = True)
+    
+    return indicator_dataframe, granular_dataframe
+
 def __update_column_names(final_frames):
     """Simple helper to snake_case column names"""
     for key, dataframe in final_frames.items():
@@ -389,10 +453,11 @@ def main(db_file, out_db_file):
     
     print('''[INDICATORS] Now cleaning the indicator data... ''')
     indicator_dataframe, data_sources = clean_indicator_data(indicator_dataframe)
+    indicator_dataframe, granular_dataframe = __split_ind_data(indicator_dataframe)
     print('''[INDICATORS] Now cleaning the indicator data... DONE''')
     final_frames['datasource_to_indicator_year_and_area'] = data_sources
     final_frames['indicator_data'] = indicator_dataframe
-    
+    final_frames['granular_data'] = granular_dataframe
     
     # - Countries and regions
     print("[AREAS] Cleaning info for countries / regions... ")
