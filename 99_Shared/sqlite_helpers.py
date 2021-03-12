@@ -23,6 +23,7 @@ else:
 sqlite_name = 'WHO_Data'
 
 db_file = f'{outdir}/{sqlite_name}.sqlite3'
+create_db_script = f'/Users/matthew.mcfahn/Documents/Github/who-api-analysis/create_modelled_db.sql'
 
 ### - Generic helpers
 def create_connection(db_file = db_file):
@@ -223,4 +224,50 @@ def __dimensions_to_sqlite(dimensions, db_file = db_file, val_is_frame = False):
     
     conn.close()
     print(f'Outputting to SQLite database: {db_file} <<< DONE')
+    return None
+
+def __output_modelled_data(final_frames, out_db_file):
+    """
+    Custom routine for outputting the modelled data, specifying datatypes and
+    cardinality of relationships etc.
+    
+    Parameters
+    ----------
+    final_frames : dict (str : pd.DataFrame())
+        A dictionary of table names and data for tables
+    out_db_file : str
+        Filepath to the SQLite file to be output
+    Returns
+    -------
+    None
+    """
+    # Check we have expected data
+    tables = list(final_frames.keys())
+    if not tables == ['indicator_data','comments','grain_to_datasource','datasources','areas','categories','indicator_info']:
+        raise Exception('Expected a different set of tables. Please review.')
+    
+    # Create connection
+    conn = create_connection(out_db_file)
+    
+    ### - Define the structure of the tables, with datatypes
+    create_table_sql = ""
+    for content in open(create_db_script,'r'):
+        create_table_sql += content
+    
+    # Create tables
+    try:
+        cur = conn.cursor()
+        cur.executescript(create_table_sql)
+    except Error as e:
+        raise Exception(f'Creating SQLites table failed with error code {e}')
+    
+    # Finally, update table with results from responses
+    for key, frame in final_frames.items():
+        print(f'Outputting:{key}\n{frame}')
+        frame.to_sql(name = key, con = conn, if_exists = 'append', 
+                     index = False)
+    print('Data output: COMPLETE')
+    # Close connection
+    cur.close()
+    conn.close()
     return None
