@@ -69,7 +69,7 @@ def __get_years_tickvals(years):
         stepsize = 10
     elif delta >= 40:
         stepsize = 5
-    elif delta >= 10:
+    elif delta >= 16:
         stepsize = 2
     else:
         stepsize = 1
