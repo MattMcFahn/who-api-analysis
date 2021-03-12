@@ -89,83 +89,78 @@ app = dash.Dash(__name__)
 def main():
     """Just testing"""
     # Set defaults to be loaded    
-    app.layout = html.Div([
+    app.layout = html.Div( # First \div element
     
-    html.Div([
-        html.H1(children="WHO Global Health Observatory: Dash Analytics",
-                style={"fontSize": "48px", "color": "black"},
-        ),
-        html.P(children="Lineplot for a selected area and indicator",
-               style={'fontSize':'24px', 'color':'grey'},
-        ),
-        dcc.Graph(id ='graph',
-        ),
-            ], className = 'Graph'),
-    
-    html.Div([html.Label(['Choose category:'],style={'font-weight': 'bold', "text-align": "left"}),
-
-        dcc.Dropdown(id='category_dropdown',
-            options=categories_dict,
-            optionHeight=35,                    #height/space between dropdown options
-            value=25,                           #dropdown value selected automatically when page loads
-            disabled=False,                     #disable dropdown value selection
-            multi=False,                        #allow multiple dropdown values to be selected
-            searchable=True,                    #allow user-searching of dropdown values
-            search_value='',                    #remembers the value searched in dropdown
-            placeholder='Please select...',     #gray, default text shown when no option is selected
-            clearable=True,                     #allow user to removes the selected value
-            style={'width':"100%"},              #use dictionary to define CSS styles of your dropdown
-            # className='select_box',           #activate separate CSS document in assets folder
-            # persistence=True,                 #remembers dropdown value. Used with persistence_type
-            # persistence_type='memory'         #remembers dropdown value selected until...
-            ),                                  #'memory': browser tab is refreshed
-                                                #'session': browser tab is closed
-                                                #'local': browser cookies are deleted
-    ],className='DropDown'),
-    
-    html.Div([html.Label(['Choose indicator:'],style={'font-weight': 'normal', "text-align": "left"}),
-
-        dcc.Dropdown(id='indicator_dropdown',
-            options=indicators_dict,
-            optionHeight=35,                    #height/space between dropdown options
-            value='CM_03',                      #dropdown value selected automatically when page loads
-            disabled=False,                     #disable dropdown value selection
-            multi=False,                        #allow multiple dropdown values to be selected
-            searchable=True,                    #allow user-searching of dropdown values
-            search_value='',                    #remembers the value searched in dropdown
-            placeholder='Please select...',     #gray, default text shown when no option is selected
-            clearable=True,                     #allow user to removes the selected value
-            style={'width':"100%"},              #use dictionary to define CSS styles of your dropdown
-            # className='select_box',           #activate separate CSS document in assets folder
-            # persistence=True,                 #remembers dropdown value. Used with persistence_type
-            # persistence_type='memory'         #remembers dropdown value selected until...
-            ),                                  #'memory': browser tab is refreshed
-                                                #'session': browser tab is closed
-                                                #'local': browser cookies are deleted
-    ],className='DropDown'),
-    
-    html.Div([html.Label(['Choose area:'],style={'font-weight': 'normal', "text-align": "left"}),
-
-        dcc.Dropdown(id='area_dropdown',
-            options=areas_dict,
-            optionHeight=35,                    #height/space between dropdown options
-            value='GBR',                        #dropdown value selected automatically when page loads
-            disabled=False,                     #disable dropdown value selection
-            multi=False,                        #allow multiple dropdown values to be selected
-            searchable=True,                    #allow user-searching of dropdown values
-            search_value='',                    #remembers the value searched in dropdown
-            placeholder='Please select...',     #gray, default text shown when no option is selected
-            clearable=True,                     #allow user to removes the selected value
-            style={'width':"100%"},              #use dictionary to define CSS styles of your dropdown
-            # className='select_box',           #activate separate CSS document in assets folder
-            # persistence=True,                 #remembers dropdown value. Used with persistence_type
-            # persistence_type='memory'         #remembers dropdown value selected until...
-            ),                                  #'memory': browser tab is refreshed
-                                                #'session': browser tab is closed
-                                                #'local': browser cookies are deleted
-    ],className='DropDown'),
-    
-    ])
+    children=[
+              html.Div(className='row',  # Define the row element. This'll have two cols
+              children=[
+                        html.Div(className='four columns div-user-controls',  # Define the left element
+                                 children = [html.P(children="Use dropdowns to select indicators and areas to display"),
+                                             html.Div([html.Label(['Choose category:'],style={'font-weight': 'bold', "text-align": "left"}),
+                                                       dcc.Dropdown(id='category_dropdown',
+                                                                    options=categories_dict,
+                                                                    optionHeight=35,                    #height/space between dropdown options
+                                                                    value=25,                           #dropdown value selected automatically when page loads
+                                                                    disabled=False,                     #disable dropdown value selection
+                                                                    multi=False,                        #allow multiple dropdown values to be selected
+                                                                    searchable=True,                    #allow user-searching of dropdown values
+                                                                    search_value='',                    #remembers the value searched in dropdown
+                                                                    placeholder='Please select...',     #gray, default text shown when no option is selected
+                                                                    clearable=True,                     #allow user to removes the selected value
+                                                                    style={'width':"100%"},             #use dictionary to define CSS styles of your dropdown
+                                                                    ),                                  #'memory': browser tab is refreshed
+                                                       
+                                                            ],className='DropDown'),
+                            
+                                             html.Div([html.Label(['Choose indicator:'],style={'font-weight': 'normal', "text-align": "left"}),
+                                                       
+                                                       dcc.Dropdown(id='indicator_dropdown',
+                                                                    options=indicators_dict,
+                                                                    optionHeight=35,                    #height/space between dropdown options
+                                                                    value='CM_03',                      #dropdown value selected automatically when page loads
+                                                                    disabled=False,                     #disable dropdown value selection
+                                                                    multi=False,                        #allow multiple dropdown values to be selected
+                                                                    searchable=True,                    #allow user-searching of dropdown values
+                                                                    search_value='',                    #remembers the value searched in dropdown
+                                                                    placeholder='Please select...',     #gray, default text shown when no option is selected
+                                                                    clearable=True,                     #allow user to removes the selected value
+                                                                    style={'width':"100%"},             #use dictionary to define CSS styles of your dropdown
+                                                                    # className='select_box',           #activate separate CSS document in assets folder
+                                                                    # persistence=True,                 #remembers dropdown value. Used with persistence_type
+                                                                    # persistence_type='memory'         #remembers dropdown value selected until...
+                                                                    ),   
+                                                       ],className='DropDown'),
+                            
+                                            html.Div([html.Label(['Choose area:'],style={'font-weight': 'normal', "text-align": "left"}),
+                                                      
+                                                      dcc.Dropdown(id='area_dropdown',
+                                                                   options=areas_dict,
+                                                                   optionHeight=35,                    #height/space between dropdown options
+                                                                   value='GBR',                        #dropdown value selected automatically when page loads
+                                                                   disabled=False,                     #disable dropdown value selection
+                                                                   multi=False,                        #allow multiple dropdown values to be selected
+                                                                   searchable=True,                    #allow user-searching of dropdown values
+                                                                   search_value='',                    #remembers the value searched in dropdown
+                                                                   placeholder='Please select...',     #gray, default text shown when no option is selected
+                                                                   clearable=True,                     #allow user to removes the selected value
+                                                                   style={'width':"100%"},              #use dictionary to define CSS styles of your dropdown
+                                                                   ),                                  #'memory': browser tab is refreshed
+                                                      ],className='DropDown'),
+                                            ]
+                                 ),
+            
+                        html.Div(className='eight columns div-for-charts bg-grey',  # Define the right element
+                                 children = [
+                                             html.Div(children=[html.H1(children="WHO Global Health Observatory: Dash Analytics"),
+                                                                dcc.Graph(id ='single_country_graph',className = 'Graph'),
+                                                                ]
+                                                      )
+                                             ],
+                                 )
+                        ]
+              )
+              ]
+    )
     
     return None
 
@@ -184,19 +179,26 @@ def __restrict_areas_dropdown(ind_code):
     return areas_dict
 
 
-### - Callback: Update indicator options, based on category
+### - Callback: Update indicator options, based on category (TEST: And area)
 @app.callback(
     dash.dependencies.Output('indicator_dropdown', 'options'),
-    [dash.dependencies.Input('category_dropdown', 'value')]
+    [dash.dependencies.Input('category_dropdown', 'value'),
+     dash.dependencies.Input('area_dropdown', 'value')
+     ]
 )
-def __update_indicator_dropdown(category_id):
+def __restrict_indicator_dropdown(category_id, area_code):
+    
     cut_indicators = indicators.loc[indicators['category_id'] == category_id]
+    data = indicator_data.loc[indicator_data['area_code'] == area_code]
+    present_indicators = data['indicator_code'].unique()
+    cut_indicators = cut_indicators.loc[cut_indicators['indicator_code'].isin(present_indicators)]
+    
     indicators_dict = [{'label': cut_indicators.loc[i]['indicator_name'], 'value': cut_indicators.loc[i]['indicator_code']} for i in cut_indicators.index]
     return indicators_dict
 
 ### - Callback: Update graphic, based on inputs
 @app.callback(
-    dash.dependencies.Output(component_id = 'graph', component_property = 'figure'),
+    dash.dependencies.Output(component_id = 'single_country_graph', component_property = 'figure'),
     [dash.dependencies.Input(component_id = 'area_dropdown', component_property = 'value'),
      dash.dependencies.Input(component_id = 'indicator_dropdown', component_property = 'value'),
      ])
@@ -208,6 +210,7 @@ def __update_plot(area_code, ind_code):
     data = indicator_data.loc[indicator_data['area_code'] == area_code]
     data = data.loc[data['indicator_code'] == ind_code]
     data.sort_values(by = 'year', inplace = True)
+    
     years = data['year'].unique()
     if len(years) > 1:
         x = list(data["year"])
@@ -231,7 +234,8 @@ def __update_plot(area_code, ind_code):
                            fillcolor='rgba(0,100,80,0.2)',
                            line=dict(color='rgba(255,255,255,0)'),
                            showlegend=True,
-                           name='Low & high bounds')
+                           name='Low & high bounds',
+                           hoverinfo='skip')
                        ])
         fig.update_layout(xaxis_title='Year',
                           yaxis_title='Value',
