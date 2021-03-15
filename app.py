@@ -95,7 +95,8 @@ def main():
               html.Div(className='row',  # Define the row element. This'll have two cols
               children=[
                         html.Div(className='four columns div-user-controls',  # Define the left element
-                                 children = [html.P(children="Use dropdowns to select indicators and areas to display"),
+                                 children = [html.H6(children="Use dropdowns to select indicators and areas to display",
+                                                     style={'marginBottom': 0, 'marginTop': 0}),
                                              html.Div([html.Label(['Choose category:'],style={'font-weight': 'bold', "text-align": "left"}),
                                                        dcc.Dropdown(id='category_dropdown',
                                                                     options=categories_dict,
@@ -117,7 +118,7 @@ def main():
                                                        dcc.Dropdown(id='indicator_dropdown',
                                                                     options=indicators_dict,
                                                                     optionHeight=35,                    #height/space between dropdown options
-                                                                    value='CM_03',                      #dropdown value selected automatically when page loads
+                                                                    value='WHOSIS_000014',              #dropdown value selected automatically when page loads
                                                                     disabled=False,                     #disable dropdown value selection
                                                                     multi=False,                        #allow multiple dropdown values to be selected
                                                                     searchable=True,                    #allow user-searching of dropdown values
@@ -151,7 +152,13 @@ def main():
             
                         html.Div(className='eight columns div-for-charts bg-grey',  # Define the right element
                                  children = [
-                                             html.Div(children=[html.H1(children="WHO Global Health Observatory: Dash Analytics"),
+                                             html.Div(children=[html.H1(children="WHO Global Health Observatory: Dash Analytics", 
+                                                                        style={'marginBottom': 25, 'marginTop': 65}),
+                                                                
+                                                                html.H2(children ="Explore GHO indicators across the world"),
+                                                                dcc.Graph(id ='globe_graph',className = 'Graph', style={'width': '126vh', 'height': '77.87vh'}),
+                                                                
+                                                                html.H2(children ="Single country explorer"),
                                                                 dcc.Graph(id ='single_country_graph',className = 'Graph'),
                                                                 ]
                                                       )
@@ -196,13 +203,13 @@ def __restrict_indicator_dropdown(category_id, area_code):
     indicators_dict = [{'label': cut_indicators.loc[i]['indicator_name'], 'value': cut_indicators.loc[i]['indicator_code']} for i in cut_indicators.index]
     return indicators_dict
 
-### - Callback: Update graphic, based on inputs
+### - Callback: Update line graph, based on inputs
 @app.callback(
     dash.dependencies.Output(component_id = 'single_country_graph', component_property = 'figure'),
     [dash.dependencies.Input(component_id = 'area_dropdown', component_property = 'value'),
      dash.dependencies.Input(component_id = 'indicator_dropdown', component_property = 'value'),
      ])
-def __update_plot(area_code, ind_code):
+def __update_lineplot(area_code, ind_code):
     """Helper to render a lineplot for the area and indicator"""
     area_name = areas.loc[areas['area_code'] ==area_code].reset_index(drop=True).loc[0]['area']
     ind_name = indicators.loc[indicators['indicator_code'] ==ind_code].reset_index(drop=True).loc[0]['indicator_name']
@@ -241,7 +248,9 @@ def __update_plot(area_code, ind_code):
                           yaxis_title='Value',
                           title = f"""{area_name}: <br>{ind_name}""",
                           xaxis = dict(tickmode = 'array',
-                                       tickvals = __get_years_tickvals(years))
+                                       tickvals = __get_years_tickvals(years)),
+                          plot_bgcolor='#ced4da',
+                          paper_bgcolor='#ced4da'
                           )
     else:
         y = data[['low','numeric_value','high']].reset_index(drop = True)
@@ -254,8 +263,50 @@ def __update_plot(area_code, ind_code):
         fig.update_layout(barmode='group',
                           xaxis_title='Area',
                           yaxis_title='Value',
-                          title = f"""{area_name}: <br>{ind_name}"""
+                          title = f"""{area_name}: <br>{ind_name}""",
+                          plot_bgcolor='#ced4da',
+                          paper_bgcolor='#ced4da'
                           )
+    return fig
+
+
+### - Callback: Update world graph, based on inputs
+@app.callback(
+    dash.dependencies.Output(component_id = 'globe_graph', component_property = 'figure'),
+     [dash.dependencies.Input(component_id = 'indicator_dropdown', component_property = 'value')
+     ])
+    
+def __update_globe_graphic(ind_code):
+    """Helper to render a world heat map based on the indicator selected"""
+    indicator_name = indicators.loc[indicators['indicator_code'] == ind_code].reset_index(drop = True).loc[0].indicator_name
+    
+    data = indicator_data.loc[indicator_data['indicator_code'] == ind_code]
+    max_year = data['year'].max()
+    data = data.loc[data['year'] == max_year]
+    max_year = int(max_year)
+    data = data.merge(areas[['area_code','area']], on = 'area_code', how = 'left',
+                      validate = 'many_to_one')
+    
+    fig = go.Figure(data=go.Choropleth(locations = data['area_code'],
+                                       z = data['numeric_value'],
+                                       text = data['area'],
+                                       colorscale = 'Blues',
+                                       autocolorscale=False,
+                                       reversescale=False,
+                                       marker_line_color='darkgray',
+                                       marker_line_width=0.5,
+                                       colorbar_title = 'Value'
+                                       )
+                    )
+    fig.update_layout(title_text=f'{indicator_name}: {max_year}',
+                      geo=dict(showframe=False,
+                               showcoastlines=False,
+                               projection_type='equirectangular'
+                               ),
+                      plot_bgcolor='#ced4da',
+                      paper_bgcolor='#ced4da'
+                     )
+    
     return fig
 
 # Startup app on running module
