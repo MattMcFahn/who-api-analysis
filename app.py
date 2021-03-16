@@ -20,25 +20,18 @@ sys.path.append('/Users/matthew.mcfahn/Documents/GitHub/who-api-analysis/99_Shar
 ##############################################################################
 #   - Setup data needed for app
 ##############################################################################
-import sqlite_helpers
-# TODO: Customise for a deployed and hosted environment
-db_file = f'{sqlite_helpers.outdir}/who_data_model.sqlite3'
-db_tables = sqlite_helpers.__get_table_schema(db_file)
-dataframes = sqlite_helpers.__load_db_to_pandas(db_file, db_tables)
-areas = dataframes['areas']
-areas = areas.loc[areas['dimension'] == 'COUNTRY']
-categories = dataframes['categories']
+from dash_data_extraction import db_file, get_static_data_assets, __get_available_areas, __get_linegraph_data, __get_worldmap_data
 
-indicator_data = dataframes['indicator_data']
-indicator_data = indicator_data.loc[indicator_data['numeric_value'].notna()]
-indicator_data = indicator_data.loc[indicator_data['area_code'].isin(areas['area_code'].unique())]
-present_indicators = list(indicator_data['indicator_code'].unique())
-indicators = dataframes['indicator_info']
-indicators = indicators.loc[indicators['indicator_code'].isin(present_indicators)]
+
+print('[DATA LOAD] Loading static assets...')
+indicators, categories, areas = get_static_data_assets(db_file)
 
 indicators_dict = [{'label': indicators.loc[i]['indicator_name'], 'value': indicators.loc[i]['indicator_code']} for i in indicators.index]
-areas_dict = [{'label': areas.loc[i]['area'], 'value': areas.loc[i]['area_code']} for i in areas.index]
-categories_dict = [{'label':categories.loc[i]['category_name'], 'value':categories.loc[i]['category_id']} for i in categories.index]
+areas_dict = [{'label': areas.loc[i]['area_name'], 'value': areas.loc[i]['area_code']} for i in areas.index]
+categories_dict = [{'label':categories.category_name[i], 'value':categories.category_name[i]} for i in categories.category_name.index]
+print('[DATA LOAD] Complete <<< Launching app')
+
+
 
 ##############################################################################
 #   - Setup data needed for app
@@ -101,7 +94,7 @@ def main():
                                                        dcc.Dropdown(id='category_dropdown',
                                                                     options=categories_dict,
                                                                     optionHeight=35,                    #height/space between dropdown options
-                                                                    value=25,                           #dropdown value selected automatically when page loads
+                                                                    value="Mortality and Global Health Estimates",#dropdown value selected automatically when page loads
                                                                     disabled=False,                     #disable dropdown value selection
                                                                     multi=False,                        #allow multiple dropdown values to be selected
                                                                     searchable=True,                    #allow user-searching of dropdown values
@@ -177,28 +170,23 @@ def main():
     [dash.dependencies.Input('indicator_dropdown', 'value')]
 )
 def __restrict_areas_dropdown(ind_code):
+    """Restrict to only areas with a value"""
     # Find present country codes
-    data = indicator_data.loc[indicator_data['indicator_code'] == ind_code]
-    area_codes = list(data['area_code'].unique())
+    area_codes = __get_available_areas(ind_code)
     
     cut_areas = areas.loc[areas['area_code'].isin(area_codes)]
-    areas_dict = [{'label': cut_areas.loc[i]['area'], 'value': cut_areas.loc[i]['area_code']} for i in cut_areas.index]
+    areas_dict = [{'label': cut_areas.loc[i]['area_name'], 'value': cut_areas.loc[i]['area_code']} for i in cut_areas.index]
     return areas_dict
-
 
 ### - Callback: Update indicator options, based on category (TEST: And area)
 @app.callback(
     dash.dependencies.Output('indicator_dropdown', 'options'),
-    [dash.dependencies.Input('category_dropdown', 'value'),
-     dash.dependencies.Input('area_dropdown', 'value')
+    [dash.dependencies.Input('category_dropdown', 'value')
      ]
 )
-def __restrict_indicator_dropdown(category_id, area_code):
-    
-    cut_indicators = indicators.loc[indicators['category_id'] == category_id]
-    data = indicator_data.loc[indicator_data['area_code'] == area_code]
-    present_indicators = data['indicator_code'].unique()
-    cut_indicators = cut_indicators.loc[cut_indicators['indicator_code'].isin(present_indicators)]
+def __restrict_indicator_dropdown(category_name):
+    """Restrict to only indicators with a value"""
+    cut_indicators = indicators.loc[indicators['category_name'] == category_name]
     
     indicators_dict = [{'label': cut_indicators.loc[i]['indicator_name'], 'value': cut_indicators.loc[i]['indicator_code']} for i in cut_indicators.index]
     return indicators_dict
@@ -211,12 +199,15 @@ def __restrict_indicator_dropdown(category_id, area_code):
      ])
 def __update_lineplot(area_code, ind_code):
     """Helper to render a lineplot for the area and indicator"""
-    area_name = areas.loc[areas['area_code'] ==area_code].reset_index(drop=True).loc[0]['area']
+    area_name = areas.loc[areas['area_code'] ==area_code].reset_index(drop=True).loc[0]['area_name']
     ind_name = indicators.loc[indicators['indicator_code'] ==ind_code].reset_index(drop=True).loc[0]['indicator_name']
     
-    data = indicator_data.loc[indicator_data['area_code'] == area_code]
-    data = data.loc[data['indicator_code'] == ind_code]
-    data.sort_values(by = 'year', inplace = True)
+    # Read the data
+    data = __get_linegraph_data(area_code, ind_code)
+    if data.empty:
+        fig = go.Figure()
+        fig.add_annotation(text = 'No data for the selected area and indicator')
+        return fig
     
     years = data['year'].unique()
     if len(years) > 1:
@@ -280,16 +271,20 @@ def __update_globe_graphic(ind_code):
     """Helper to render a world heat map based on the indicator selected"""
     indicator_name = indicators.loc[indicators['indicator_code'] == ind_code].reset_index(drop = True).loc[0].indicator_name
     
-    data = indicator_data.loc[indicator_data['indicator_code'] == ind_code]
+    data = __get_worldmap_data(ind_code)
+    # Deal with no data cases. This does sometimes happen unfortunately (as data is available at a more granular level)
+    if data.empty:
+        fig = go.Figure(data = go.Choropleth(locations = areas['area_code']))
+        fig.add_annotation(text = 'No data available at the top level. Select a lower granularity')
+        return fig
+        
     max_year = data['year'].max()
     data = data.loc[data['year'] == max_year]
     max_year = int(max_year)
-    data = data.merge(areas[['area_code','area']], on = 'area_code', how = 'left',
-                      validate = 'many_to_one')
     
     fig = go.Figure(data=go.Choropleth(locations = data['area_code'],
                                        z = data['numeric_value'],
-                                       text = data['area'],
+                                       text = data['area_name'],
                                        colorscale = 'Blues',
                                        autocolorscale=False,
                                        reversescale=False,
