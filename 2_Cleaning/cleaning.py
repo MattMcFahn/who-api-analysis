@@ -453,6 +453,8 @@ def main(db_file, out_db_file):
     
     print('''[INDICATORS] Now cleaning the indicator data... ''')
     indicator_dataframe, data_sources = clean_indicator_data(indicator_dataframe)
+    areas = pd.DataFrame(indicator_dataframe['SpatialDim'].unique()).rename(columns = {0:'Code'})
+
     indicator_dataframe, granular_dataframe = __split_ind_data(indicator_dataframe)
     print('''[INDICATORS] Now cleaning the indicator data... DONE''')
     final_frames['datasource_to_indicator_year_and_area'] = data_sources
@@ -461,7 +463,6 @@ def main(db_file, out_db_file):
     
     # - Countries and regions
     print("[AREAS] Cleaning info for countries / regions... ")
-    areas = pd.DataFrame(indicator_dataframe['SpatialDim'].unique()).rename(columns = {0:'Code'})
     countries_dataframe = input_frames.pop('countries')
     regions_dataframe = input_frames.pop('regions')
     areas = areas.merge(pd.concat([countries_dataframe, regions_dataframe]), 
@@ -475,7 +476,7 @@ def main(db_file, out_db_file):
     print("[MEASURES] Cleaning info indicators and their categories... ")
     retrieved_indicators = pd.DataFrame(indicator_dataframe['IndicatorCode'].unique()).rename(columns = {0:'IndicatorCode'})
     indicators = input_frames.pop('indicators')
-    indicators = indicators.merge(retrieved_indicators, how = 'inner', on = 'IndicatorCode', validate = 'one_to_one')
+    indicators = indicators.merge(retrieved_indicators, how = 'left', on = 'IndicatorCode', validate = 'one_to_one')
     indicators = __clean_indicator_info(indicators)
     final_frames['indicator_info'] = indicators
     print("[MEASURES] Cleaning info indicators and their categories... DONE")

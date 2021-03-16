@@ -243,7 +243,7 @@ def __output_modelled_data(final_frames, out_db_file):
     """
     # Check we have expected data
     tables = list(final_frames.keys())
-    if not tables == ['indicator_data','comments','grain_to_datasource','datasources','areas','categories','indicator_info']:
+    if not tables == ['comments','results_to_parameters', 'parameters', 'indicator_info', 'categories', 'datasources', 'datasource_bridge_table', 'areas', 'values_table']:
         raise Exception('Expected a different set of tables. Please review.')
     
     # Create connection
