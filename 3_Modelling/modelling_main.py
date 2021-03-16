@@ -11,7 +11,7 @@ import pandas as pd
 import sqlite_helpers
 
 db_file = f'{sqlite_helpers.outdir}/who_gho_cleaned.sqlite3'
-out_db_file = f'{sqlite_helpers.outdir}/who_data_model_NEW.sqlite3'
+out_db_file = f'{sqlite_helpers.outdir}/who_data_model.sqlite3'
 
 def __change_code_to_id(indicator_data, other_df, target = 'indicator'):
     """
