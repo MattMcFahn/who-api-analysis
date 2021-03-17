@@ -31,8 +31,6 @@ areas_dict = [{'label': areas.loc[i]['area_name'], 'value': areas.loc[i]['area_c
 categories_dict = [{'label':categories.category_name[i], 'value':categories.category_name[i]} for i in categories.category_name.index]
 print('[DATA LOAD] Complete <<< Launching app')
 
-
-
 ##############################################################################
 #   - Setup data needed for app
 ##############################################################################
@@ -79,6 +77,7 @@ def __get_years_tickvals(years):
 ##############################################################################
 # Initalise Dash app  class
 app = dash.Dash(__name__)
+app.title = 'World Health Organisation: Dash data explorer'
 def main():
     """Just testing"""
     # Set defaults to be loaded    
@@ -93,7 +92,7 @@ def main():
                                              html.Div([html.Label(['Choose category:'],style={'font-weight': 'bold', "text-align": "left"}),
                                                        dcc.Dropdown(id='category_dropdown',
                                                                     options=categories_dict,
-                                                                    optionHeight=35,                    #height/space between dropdown options
+                                                                    optionHeight=65,                    #height/space between dropdown options
                                                                     value="Mortality and Global Health Estimates",#dropdown value selected automatically when page loads
                                                                     disabled=False,                     #disable dropdown value selection
                                                                     multi=False,                        #allow multiple dropdown values to be selected
@@ -110,7 +109,7 @@ def main():
                                                        
                                                        dcc.Dropdown(id='indicator_dropdown',
                                                                     options=indicators_dict,
-                                                                    optionHeight=35,                    #height/space between dropdown options
+                                                                    optionHeight=65,                    #height/space between dropdown options
                                                                     value='WHOSIS_000014',              #dropdown value selected automatically when page loads
                                                                     disabled=False,                     #disable dropdown value selection
                                                                     multi=False,                        #allow multiple dropdown values to be selected
@@ -125,21 +124,7 @@ def main():
                                                                     ),   
                                                        ],className='DropDown'),
                             
-                                            html.Div([html.Label(['Choose area:'],style={'font-weight': 'normal', "text-align": "left"}),
-                                                      
-                                                      dcc.Dropdown(id='area_dropdown',
-                                                                   options=areas_dict,
-                                                                   optionHeight=35,                    #height/space between dropdown options
-                                                                   value='GBR',                        #dropdown value selected automatically when page loads
-                                                                   disabled=False,                     #disable dropdown value selection
-                                                                   multi=False,                        #allow multiple dropdown values to be selected
-                                                                   searchable=True,                    #allow user-searching of dropdown values
-                                                                   search_value='',                    #remembers the value searched in dropdown
-                                                                   placeholder='Please select...',     #gray, default text shown when no option is selected
-                                                                   clearable=True,                     #allow user to removes the selected value
-                                                                   style={'width':"100%"},              #use dictionary to define CSS styles of your dropdown
-                                                                   ),                                  #'memory': browser tab is refreshed
-                                                      ],className='DropDown'),
+                                            
                                             ]
                                  ),
             
@@ -149,11 +134,28 @@ def main():
                                                                         style={'marginBottom': 25, 'marginTop': 65}),
                                                                 
                                                                 html.H2(children ="Explore GHO indicators across the world"),
-                                                                dcc.Graph(id ='globe_graph',className = 'Graph', style={'width': '126vh', 'height': '77.87vh'}),
+                                                                dcc.Graph(id ='globe_graph',className = 'Graph', style={'width': '126vh', 
+                                                                                                                        'height': '77.87vh'}),
                                                                 
-                                                                html.H2(children ="Single country explorer"),
+                                                                html.H2(children ="Single country explorer: Explore one country's performance over time"),
+                                                                
+                                                                html.Div([html.Label(['Choose area:'],style={'font-weight': 'bold', "text-align": "left"}),
+                                                      
+                                                                          dcc.Dropdown(id='area_dropdown',
+                                                                                       options=areas_dict,
+                                                                                       optionHeight=65,                    #height/space between dropdown options
+                                                                                       value='GBR',                        #dropdown value selected automatically when page loads
+                                                                                       disabled=False,                     #disable dropdown value selection
+                                                                                       multi=False,                        #allow multiple dropdown values to be selected
+                                                                                       searchable=True,                    #allow user-searching of dropdown values
+                                                                                       search_value='',                    #remembers the value searched in dropdown
+                                                                                       placeholder='Please select...',     #gray, default text shown when no option is selected
+                                                                                       clearable=True,                     #allow user to removes the selected value
+                                                                                       style={'width':"100%"},              #use dictionary to define CSS styles of your dropdown
+                                                                                       ),                                  #'memory': browser tab is refreshed
+                                                                          ],className='DropDown'),
                                                                 dcc.Graph(id ='single_country_graph',className = 'Graph'),
-                                                                ]
+                                                                ], style = {'backgroundColor':'rgb(50, 50, 50)'}
                                                       )
                                              ],
                                  )
@@ -175,6 +177,7 @@ def __restrict_areas_dropdown(ind_code):
     area_codes = __get_available_areas(ind_code)
     
     cut_areas = areas.loc[areas['area_code'].isin(area_codes)]
+    cut_areas = cut_areas.sort_values(by = 'area_code').reset_index(drop = True)
     areas_dict = [{'label': cut_areas.loc[i]['area_name'], 'value': cut_areas.loc[i]['area_code']} for i in cut_areas.index]
     return areas_dict
 
@@ -206,7 +209,7 @@ def __update_lineplot(area_code, ind_code):
     data = __get_linegraph_data(area_code, ind_code)
     if data.empty:
         fig = go.Figure()
-        fig.add_annotation(text = 'No data for the selected area and indicator')
+        fig.add_annotation(text = """No data for the selected area and indicator""")
         return fig
     
     years = data['year'].unique()
@@ -272,28 +275,40 @@ def __update_globe_graphic(ind_code):
     indicator_name = indicators.loc[indicators['indicator_code'] == ind_code].reset_index(drop = True).loc[0].indicator_name
     
     data = __get_worldmap_data(ind_code)
+    data.drop_duplicates(subset = ['area_code','year','numeric_value'], inplace = True)
     # Deal with no data cases. This does sometimes happen unfortunately (as data is available at a more granular level)
     if data.empty:
         fig = go.Figure(data = go.Choropleth(locations = areas['area_code']))
         fig.add_annotation(text = 'No data available at the top level. Select a lower granularity')
         return fig
+    
+    # Cut to just the latest year for all areas. Could pass this upstream into the SQL, but it's easier to handle the edge case here 
+    if list(data.year.unique()) == [None]:
+        max_year = 'Unknown'
+    else:
+        max_year = int(data['year'].max())
+        max_yr_df = data.groupby('area_code')['year'].max().reset_index()
+        data = max_yr_df.merge(data, on = ['area_code','year'], how = 'left', validate = 'one_to_one')
         
-    max_year = data['year'].max()
-    data = data.loc[data['year'] == max_year]
-    max_year = int(max_year)
+        
+    text = 'Country: ' + data['area_name'] + '<br>Year: ' +\
+            data['year'].astype(int).astype(str) +\
+                '<br>Value: ' + data['numeric_value'].round(1).astype(str)
     
     fig = go.Figure(data=go.Choropleth(locations = data['area_code'],
                                        z = data['numeric_value'],
-                                       text = data['area_name'],
+                                       text = text,
                                        colorscale = 'Blues',
                                        autocolorscale=False,
                                        reversescale=False,
                                        marker_line_color='darkgray',
                                        marker_line_width=0.5,
-                                       colorbar_title = 'Value'
+                                       colorbar_title = 'Value',
+                                       hovertext = text,
+                                       hoverinfo = 'text'
                                        )
                     )
-    fig.update_layout(title_text=f'{indicator_name}: {max_year}',
+    fig.update_layout(title_text=f'{indicator_name}: Data up to {max_year}',
                       geo=dict(showframe=False,
                                showcoastlines=False,
                                projection_type='equirectangular'
