@@ -18,9 +18,9 @@ sys.path.append('/Users/matthew.mcfahn/Documents/GitHub/who-api-analysis/99_Shar
 
 
 ##############################################################################
-#   - Setup data needed for app
+#   - Setup data needed for app, and helper functions from database connection
 ##############################################################################
-from dash_data_extraction import db_file, get_static_data_assets, __get_available_areas, __get_linegraph_data, __get_worldmap_data
+from dash_data_extraction import __get_years_tickvals, db_file, get_static_data_assets, __get_available_areas, __get_linegraph_data, __get_worldmap_data, __get_parameter_types_for_ind, __get_param_options
 
 
 print('[DATA LOAD] Loading static assets...')
@@ -34,43 +34,6 @@ print('[DATA LOAD] Complete <<< Launching app')
 ##############################################################################
 #   - Setup data needed for app
 ##############################################################################
-
-
-##############################################################################
-#   - Helper functions - Pull into a supporting module if needed
-##############################################################################
-def __get_years_tickvals(years):
-    """
-    Helper function to determine the year ticks for a graph based on how many 
-    years are passed as input
-    
-    Parameters
-    ----------
-    years : list
-        A list of the years for this dataset
-    Returns
-    -------
-    year_ticks : list
-        A list of places for tick marks on the years axis of the graph
-    """
-    min_year = int(min(years))
-    max_year = int(max(years))
-    delta = max_year - min_year
-    if delta >= 80:
-        stepsize = 10
-    elif delta >= 40:
-        stepsize = 5
-    elif delta >= 16:
-        stepsize = 2
-    else:
-        stepsize = 1
-    year_ticks = list(range(min_year, max_year + stepsize, stepsize))
-    return year_ticks
-
-##############################################################################
-#   - Helper functions - Pull into a supporting module if needed
-##############################################################################
-
 
 ##############################################################################
 #   - Main Dash app functions
@@ -123,8 +86,50 @@ def main():
                                                                     # persistence_type='memory'         #remembers dropdown value selected until...
                                                                     ),   
                                                        ],className='DropDown'),
-                            
-                                            
+                                             # Optional 'parameter type' dropdown
+                                             html.Div(id = 'parameter_type_dropdown_div',
+                                                      children = [html.Label(['Choose parameter type:'],style={'font-weight': 'normal', "text-align": "left"}),
+                                                       
+                                                       dcc.Dropdown(id='parameter_type_dropdown',
+                                                                    options=[{'label':0,'value':0}],
+                                                                    optionHeight=65,                    #height/space between dropdown options
+                                                                    value=None,                         #dropdown value selected automatically when page loads
+                                                                    disabled=False,                     #disable dropdown value selection
+                                                                    multi=False,                        #allow multiple dropdown values to be selected
+                                                                    searchable=True,                    #allow user-searching of dropdown values
+                                                                    search_value='',                    #remembers the value searched in dropdown
+                                                                    placeholder='Please select...',     #gray, default text shown when no option is selected
+                                                                    clearable=True,                     #allow user to removes the selected value
+                                                                    style={'width':"100%"},             #use dictionary to define CSS styles of your dropdown
+                                                                    # className='select_box',           #activate separate CSS document in assets folder
+                                                                    # persistence=True,                 #remembers dropdown value. Used with persistence_type
+                                                                    # persistence_type='memory'         #remembers dropdown value selected until...
+                                                                    ),   
+                                                       ],className='DropDown',style={"display":"none"},
+                                                      ),
+                                             
+                                             # Optional 'parameter' dropdown
+                                             html.Div(id = 'parameter_dropdown_div',
+                                                      children = [html.Label(['Choose parameter:'],style={'font-weight': 'normal', "text-align": "left"}),
+                                                       
+                                                       dcc.Dropdown(id='parameter_dropdown',
+                                                                    options=[{'label':0,'value':0}],
+                                                                    optionHeight=65,                    #height/space between dropdown options
+                                                                    value=None,                         #dropdown value selected automatically when page loads
+                                                                    disabled=False,                     #disable dropdown value selection
+                                                                    multi=False,                        #allow multiple dropdown values to be selected
+                                                                    searchable=True,                    #allow user-searching of dropdown values
+                                                                    search_value='',                    #remembers the value searched in dropdown
+                                                                    placeholder='Please select...',     #gray, default text shown when no option is selected
+                                                                    clearable=True,                     #allow user to removes the selected value
+                                                                    style={'width':"100%"},             #use dictionary to define CSS styles of your dropdown
+                                                                    # className='select_box',           #activate separate CSS document in assets folder
+                                                                    # persistence=True,                 #remembers dropdown value. Used with persistence_type
+                                                                    # persistence_type='memory'         #remembers dropdown value selected until...
+                                                                    ),
+                                                       ],className='DropDown',style={"display":"none"}
+                                                      ),
+                                             
                                             ]
                                  ),
             
@@ -166,27 +171,47 @@ def main():
     
     return None
 
-### - Callback: Update area options, based on indicator
+###############################################################################
+# - Callbacks to update dropdowns
+###############################################################################
+### - Callback: Update area and parameter options, based on indicator
 @app.callback(
     dash.dependencies.Output('area_dropdown', 'options'),
-    [dash.dependencies.Input('indicator_dropdown', 'value')]
-)
-def __restrict_areas_dropdown(ind_code):
-    """Restrict to only areas with a value"""
-    # Find present country codes
+    dash.dependencies.Output('parameter_type_dropdown_div', 'style'),
+    dash.dependencies.Output('parameter_dropdown_div', 'style'),
+    dash.dependencies.Output('parameter_type_dropdown', 'options'),
+    [dash.dependencies.Input('indicator_dropdown', 'value')])
+
+def __restrict_areas_dropdown_add_param_dropdowns(ind_code):
+    """Restrict to only areas with a value, and update parameter types. Needs to:
+        > Update areas options
+        > Update parameter_type dropdown visibility
+        > Update parameter_type dropdown OPTIONS
+        > Update parameter dropdown visibility
+        """
+    # Find present country codes, update areas_dict using this
     area_codes = __get_available_areas(ind_code)
-    
     cut_areas = areas.loc[areas['area_code'].isin(area_codes)]
     cut_areas = cut_areas.sort_values(by = 'area_code').reset_index(drop = True)
     areas_dict = [{'label': cut_areas.loc[i]['area_name'], 'value': cut_areas.loc[i]['area_code']} for i in cut_areas.index]
-    return areas_dict
+    
+    # Update visibility based on whether there are any parameter_type options
+    param_types = __get_parameter_types_for_ind(ind_code)
+    if param_types.empty:
+        style = {"display":"none"}
+        param_type_dict = [{'label':0,'value':0}]
+    else:
+        style = {"display":"block"}
+        param_type_dict = [{'label':x,'value':x} for x in param_types['parameter_name'].values]
+    
+    return areas_dict, style, style, param_type_dict
 
-### - Callback: Update indicator options, based on category (TEST: And area)
+### - Callback: Update indicator options, based on category
 @app.callback(
     dash.dependencies.Output('indicator_dropdown', 'options'),
     [dash.dependencies.Input('category_dropdown', 'value')
-     ]
-)
+     ])
+
 def __restrict_indicator_dropdown(category_name):
     """Restrict to only indicators with a value"""
     cut_indicators = indicators.loc[indicators['category_name'] == category_name]
@@ -194,23 +219,61 @@ def __restrict_indicator_dropdown(category_name):
     indicators_dict = [{'label': cut_indicators.loc[i]['indicator_name'], 'value': cut_indicators.loc[i]['indicator_code']} for i in cut_indicators.index]
     return indicators_dict
 
+### - Callback: Update parameter options based on parameter_type
+@app.callback(
+    dash.dependencies.Output('parameter_dropdown', 'options'),
+    [dash.dependencies.Input('parameter_type_dropdown', 'value')
+     ])
+
+def __get_paramater_options(param_name):
+    """Helper to get parameter options given the parameter name selected"""
+    data = __get_param_options(param_name)
+    
+    params_dict = [{'label':x,'value':x} for x in data['parameter_value'].values]
+    return params_dict
+
+### - Callback: Update parameter value based on new indicator
+@app.callback(
+    dash.dependencies.Output('parameter_dropdown', 'value'),
+    [dash.dependencies.Input('indicator_dropdown', 'value')
+     ])
+
+def __overwrite_param_value(ind_code):
+    """Helper to get parameter options given the parameter name selected"""
+    return None
+
+###############################################################################
+# - Callbacks to update dropdowns
+###############################################################################
+
+
+###############################################################################
+# - Callbacks to update graphics
+###############################################################################
 ### - Callback: Update line graph, based on inputs
 @app.callback(
     dash.dependencies.Output(component_id = 'single_country_graph', component_property = 'figure'),
     [dash.dependencies.Input(component_id = 'area_dropdown', component_property = 'value'),
      dash.dependencies.Input(component_id = 'indicator_dropdown', component_property = 'value'),
+     dash.dependencies.Input(component_id = 'parameter_dropdown', component_property = 'value'),
      ])
-def __update_lineplot(area_code, ind_code):
+
+def __update_lineplot(area_code, ind_code, param_value):
     """Helper to render a lineplot for the area and indicator"""
     area_name = areas.loc[areas['area_code'] ==area_code].reset_index(drop=True).loc[0]['area_name']
     ind_name = indicators.loc[indicators['indicator_code'] ==ind_code].reset_index(drop=True).loc[0]['indicator_name']
     
     # Read the data
-    data = __get_linegraph_data(area_code, ind_code)
+    data = __get_linegraph_data(area_code, ind_code, param_value)
     if data.empty:
         fig = go.Figure()
         fig.add_annotation(text = """No data for the selected area and indicator""")
         return fig
+    
+    if not param_value:
+        title = f"""{area_name}: <br>{ind_name}"""
+    else:
+        title = f"""{area_name}: <br>{ind_name} - {param_value}"""
     
     years = data['year'].unique()
     if len(years) > 1:
@@ -240,7 +303,7 @@ def __update_lineplot(area_code, ind_code):
                        ])
         fig.update_layout(xaxis_title='Year',
                           yaxis_title='Value',
-                          title = f"""{area_name}: <br>{ind_name}""",
+                          title = title,
                           xaxis = dict(tickmode = 'array',
                                        tickvals = __get_years_tickvals(years)),
                           plot_bgcolor='#ced4da',
@@ -257,24 +320,24 @@ def __update_lineplot(area_code, ind_code):
         fig.update_layout(barmode='group',
                           xaxis_title='Area',
                           yaxis_title='Value',
-                          title = f"""{area_name}: <br>{ind_name}""",
+                          title = title,
                           plot_bgcolor='#ced4da',
                           paper_bgcolor='#ced4da'
                           )
     return fig
 
-
 ### - Callback: Update world graph, based on inputs
 @app.callback(
     dash.dependencies.Output(component_id = 'globe_graph', component_property = 'figure'),
-     [dash.dependencies.Input(component_id = 'indicator_dropdown', component_property = 'value')
+     [dash.dependencies.Input(component_id = 'indicator_dropdown', component_property = 'value'),
+      dash.dependencies.Input(component_id = 'parameter_dropdown', component_property = 'value'),
      ])
-    
-def __update_globe_graphic(ind_code):
+
+def __update_globe_graphic(ind_code, param_value):
     """Helper to render a world heat map based on the indicator selected"""
     indicator_name = indicators.loc[indicators['indicator_code'] == ind_code].reset_index(drop = True).loc[0].indicator_name
     
-    data = __get_worldmap_data(ind_code)
+    data = __get_worldmap_data(ind_code, param_value)
     data.drop_duplicates(subset = ['area_code','year','numeric_value'], inplace = True)
     # Deal with no data cases. This does sometimes happen unfortunately (as data is available at a more granular level)
     if data.empty:
@@ -289,7 +352,11 @@ def __update_globe_graphic(ind_code):
         max_year = int(data['year'].max())
         max_yr_df = data.groupby('area_code')['year'].max().reset_index()
         data = max_yr_df.merge(data, on = ['area_code','year'], how = 'left', validate = 'one_to_one')
-        
+    
+    if not param_value:
+        title_text=f'{indicator_name}: <br>Data up to {max_year}'
+    else:
+        title_text=f'{indicator_name} - {param_value}: <br>Data up to {max_year}'
         
     text = 'Country: ' + data['area_name'] + '<br>Year: ' +\
             data['year'].astype(int).astype(str) +\
@@ -308,7 +375,7 @@ def __update_globe_graphic(ind_code):
                                        hoverinfo = 'text'
                                        )
                     )
-    fig.update_layout(title_text=f'{indicator_name}: Data up to {max_year}',
+    fig.update_layout(title_text=title_text,
                       geo=dict(showframe=False,
                                showcoastlines=False,
                                projection_type='equirectangular'
@@ -318,6 +385,11 @@ def __update_globe_graphic(ind_code):
                      )
     
     return fig
+###############################################################################
+# - Callbacks to update graphics
+###############################################################################
+
+
 
 # Startup app on running module
 if __name__ == "__main__":

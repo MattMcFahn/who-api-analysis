@@ -14,7 +14,7 @@ from sqlite3 import Error
 from getpass import getuser
 import os
 
-# Set up the out directory, based on the user, and whether the OS is Mac or Windows
+# Set up the db location, based on the user, and whether the OS is Mac or Windows
 if os.name == 'posix':
     outdir = f'/Users/{getuser()}/Documents/World Health Organisation project'
 else:
@@ -23,6 +23,44 @@ sqlite_name = 'visualisation_model'
 
 db_file = f'{outdir}/{sqlite_name}.sqlite3'
 
+##############################################################################
+#   - Helper functions for plotting
+##############################################################################
+def __get_years_tickvals(years):
+    """
+    Helper function to determine the year ticks for a graph based on how many 
+    years are passed as input
+    
+    Parameters
+    ----------
+    years : list
+        A list of the years for this dataset
+    Returns
+    -------
+    year_ticks : list
+        A list of places for tick marks on the years axis of the graph
+    """
+    min_year = int(min(years))
+    max_year = int(max(years))
+    delta = max_year - min_year
+    if delta >= 80:
+        stepsize = 10
+    elif delta >= 40:
+        stepsize = 5
+    elif delta >= 16:
+        stepsize = 2
+    else:
+        stepsize = 1
+    year_ticks = list(range(min_year, max_year + stepsize, stepsize))
+    return year_ticks
+##############################################################################
+#   - Helper functions for plotting
+##############################################################################
+
+
+##############################################################################
+#   - Data retrieval
+##############################################################################
 # Some SQL queries for static assets
 def __get_static_queries():
     helper_path = '/Users/matthew.mcfahn/Documents/GitHub/who-api-analysis/99_Shared'
@@ -40,13 +78,6 @@ def __get_static_queries():
         queries[key] = sql
     return queries
 
-### - Template SQL queries with variables. This is gonna be a bit tricky to work out.
-# TODO:
-select_values_temp = """SELECT indicator_name, area_name, measurement_year, numeric_value, 
-                        """
-
-
-### - Generic helpers
 def create_connection(db_file = db_file):
     """Create a connection to the SQLite database specified by db_file"""
     try:
@@ -95,42 +126,94 @@ def __get_available_areas(ind_code):
     conn.close()
     return list(areas.area_code)
 
-def __get_linegraph_data(area_code, ind_code, main_measure = True):
+def __get_linegraph_data(area_code, ind_code, param_value):
     """
     Helper: Get the data for a linegraph (or barchart) for the area and ind code
     """
     conn = create_connection(db_file)
-    if main_measure:
+    if not param_value:
         sql = f"""SELECT *
                   FROM value_table
                   WHERE 
                       indicator_code = '{ind_code}'
                   AND area_code = '{area_code}'
-                  AND is_main_measure = 1
                   ORDER BY measurement_year"""
     else:
-        raise Exception('WEVE NOT FIGURED THAT OUT YET :(')
+        sql = f"""WITH value_data AS (
+                  SELECT *
+                  FROM granular_table
+                  WHERE indicator_code = '{ind_code}'
+                  AND area_code = '{area_code}'
+                  ),
+    bridge_table AS (
+        SELECT * 
+        FROM results_to_parameters
+        WHERE parameter_value = '{param_value}'
+        )
+    SELECT *
+    FROM bridge_table
+    INNER JOIN value_data
+    ON bridge_table.measurement_id = value_data.measurement_id
+    ORDER BY measurement_year"""
     
     data = pd.read_sql(sql, con = conn).rename(columns = {'measurement_year':'year'})
     conn.close()
     return data
 
-def __get_worldmap_data(ind_code, main_measure = True):
+def __get_worldmap_data(ind_code, param_value = None):
     """
     """
     conn = create_connection(db_file)
 
-    if main_measure:
+    if not param_value:
         sql = f"""SELECT *
                   FROM value_table
                   WHERE 
                       indicator_code = '{ind_code}'
-                  AND is_main_measure = 1
                   ORDER BY measurement_year"""
     else:
-        raise Exception('WEVE NOT FIGURED THAT OUT YET :(')
+        sql = f"""WITH value_data AS (
+                  SELECT *
+                  FROM granular_table
+                  WHERE indicator_code = '{ind_code}'
+                  ),
+    bridge_table AS (
+        SELECT * 
+        FROM results_to_parameters
+        WHERE parameter_value = '{param_value}'
+        )
+    SELECT *
+    FROM bridge_table
+    INNER JOIN value_data
+    ON bridge_table.measurement_id = value_data.measurement_id
+    ORDER BY measurement_year"""
     
     data = pd.read_sql(sql, con = conn).rename(columns = {'measurement_year':'year'})
     conn.close()
     return data
 
+def __get_parameter_types_for_ind(ind_code):
+    """
+    """
+    conn = create_connection(db_file)
+    
+    sql = f"""SELECT DISTINCT parameter_name
+              FROM indicator_to_parameters
+              WHERE indicator_code = '{ind_code}'"""
+    data = pd.read_sql(sql, con = conn)
+    conn.close()
+    return data
+
+def __get_param_options(param_name):
+    """Helper to grab parameter options once a type chosen"""
+    conn = create_connection(db_file)
+    
+    sql = f"""SELECT DISTINCT parameter_value
+              FROM indicator_to_parameters
+              WHERE parameter_name = '{param_name}'"""
+    data = pd.read_sql(sql, con = conn)
+    conn.close()
+    return data
+##############################################################################
+#   - Data retrieval
+##############################################################################
